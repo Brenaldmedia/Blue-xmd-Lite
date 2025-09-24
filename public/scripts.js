@@ -11,10 +11,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const navLinks = document.querySelector('.nav-links');
   const nav = document.getElementById('nav');
 
-  // Show welcome modal on page load
+  // Initialize animations
+  initAnimations();
+
+  // Show welcome modal on page load with enhanced animation
   setTimeout(() => {
-    welcomeModal.classList.add('active');
-  }, 1000);
+    welcomeModal.style.display = 'flex';
+    setTimeout(() => {
+      welcomeModal.classList.add('active');
+    }, 50);
+  }, 800);
 
   // Close modal functions
   function closeModal() {
@@ -23,6 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
       welcomeModal.style.display = 'none';
     }, 400);
   }
+  
   modalClose.addEventListener('click', closeModal);
 
   // Close modal when clicking outside
@@ -49,8 +56,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ✅ Listen for stats updates from server
   socket.on("statsUpdate", ({ activeSockets, totalUsers }) => {
-    document.getElementById("activeSockets").textContent = activeSockets;
-    document.getElementById("totalUsers").textContent = totalUsers;
+    animateCounter("activeSockets", activeSockets);
+    animateCounter("totalUsers", totalUsers);
   });
 
   // Navbar scroll effect
@@ -78,6 +85,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     showStatus("<span class='spinner'></span> Requesting pairing code...", "loading");
     requestPairingBtn.disabled = true;
+    requestPairingBtn.classList.add("loading");
 
     try {
       const res = await fetch("/api/pair", {
@@ -91,6 +99,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!res.ok) {
         showStatus("❌ Error: " + (data.error || "Failed to request pairing"), "error");
         requestPairingBtn.disabled = false;
+        requestPairingBtn.classList.remove("loading");
         return;
       }
 
@@ -105,7 +114,7 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
       `, "success");
 
-      // Add copy functionality
+      // Add copy functionality with enhanced animation
       const pairingEl = document.getElementById("pairingCode");
       if (pairingEl) {
         pairingEl.addEventListener("click", () => {
@@ -114,12 +123,14 @@ document.addEventListener("DOMContentLoaded", () => {
               const originalText = pairingEl.textContent;
               pairingEl.textContent = "Copied!";
               pairingEl.style.letterSpacing = "2px";
-              pairingEl.style.background = "rgba(0, 255, 157, 0.2)";
+              pairingEl.style.background = "rgba(0, 255, 102, 0.3)";
+              pairingEl.style.boxShadow = "0 0 30px rgba(0, 255, 102, 0.5)";
               
               setTimeout(() => {
                 pairingEl.textContent = originalText;
                 pairingEl.style.letterSpacing = "10px";
                 pairingEl.style.background = "rgba(0, 0, 0, 0.4)";
+                pairingEl.style.boxShadow = "0 5px 15px rgba(0, 0, 0, 0.2)";
               }, 2000);
             })
             .catch(() => {
@@ -132,22 +143,27 @@ document.addEventListener("DOMContentLoaded", () => {
       showStatus("❌ Failed to request pairing code (network or server error).", "error");
     } finally {
       requestPairingBtn.disabled = false;
+      requestPairingBtn.classList.remove("loading");
     }
   });
 
-  // Show status message with animation
+  // Show status message with enhanced animation
   function showStatus(message, type = "") {
     statusEl.innerHTML = message;
     statusEl.className = "";
     if (type) statusEl.classList.add(type);
-    statusEl.classList.add("fade-in");
+    
+    // Reset animation
+    statusEl.classList.remove("visible");
+    void statusEl.offsetWidth; // Trigger reflow
+    statusEl.classList.add("visible");
   }
 
   // Socket: Linked event
   socket.on("linked", ({ sessionId }) => {
     showStatus(`
       <div style="text-align: center; color: var(--success);">
-        <i class="fas fa-check-circle" style="font-size: 3rem; margin-bottom: 20px;"></i>
+        <i class="fas fa-check-circle" style="font-size: 3rem; margin-bottom: 20px; animation: bounce 2s infinite;"></i>
         <h3 style="margin-bottom: 16px;">✅ Successfully Linked!</h3>
         <p>Your device has been successfully connected. You can now use Tracle-Lite features.</p>
         <p style="margin-top: 12px; opacity: 0.8;"><small>Session ID: ${sessionId}</small></p>
@@ -156,6 +172,9 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Reset the form after successful pairing
     phoneInput.value = "";
+    
+    // Add confetti effect
+    createConfetti();
   });
 
   // Socket: pairing timeout
@@ -182,32 +201,20 @@ document.addEventListener("DOMContentLoaded", () => {
     this.value = this.value.replace(/\D/g, '');
   });
 
-  // Add loading state to button
-  requestPairingBtn.addEventListener("click", function() {
-    this.classList.add("loading");
-    const originalText = this.innerHTML;
-    this.innerHTML = '<span class="spinner"></span> Requesting...';
-    
-    setTimeout(() => {
-      this.classList.remove("loading");
-      this.innerHTML = originalText;
-    }, 3000);
-  });
-
   // Set current year in footer
   document.getElementById('year').textContent = new Date().getFullYear();
 
   // Create particle effect
   function createParticles() {
     const particlesContainer = document.getElementById('particles');
-    const particleCount = window.innerWidth < 768 ? 20 : 40;
+    const particleCount = window.innerWidth < 768 ? 25 : 50;
     
     for (let i = 0; i < particleCount; i++) {
       const particle = document.createElement('div');
       particle.classList.add('particle');
       
       // Random properties
-      const size = Math.random() * 3 + 1;
+      const size = Math.random() * 4 + 1;
       const posX = Math.random() * 100;
       const delay = Math.random() * 20;
       const duration = Math.random() * 15 + 20;
@@ -238,26 +245,159 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Add intersection observer for animations
-  const observerOptions = {
-    threshold: 0.1,
-    rootMargin: '0px 0px -50px 0px'
-  };
+  // Initialize animations
+  function initAnimations() {
+    // Intersection Observer for scroll animations
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    };
 
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.style.opacity = '1';
-        entry.target.style.transform = 'translateY(0)';
-      }
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, observerOptions);
+
+    // Observe cards for scroll animations
+    document.querySelectorAll('.card, .feature-item, .stat-card').forEach(element => {
+      observer.observe(element);
     });
-  }, observerOptions);
 
-  // Observe cards for scroll animations
-  document.querySelectorAll('.card').forEach(card => {
-    card.style.opacity = '0';
-    card.style.transform = 'translateY(30px)';
-    card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-    observer.observe(card);
+    // Add initial animation to header
+    const header = document.querySelector('header');
+    header.style.opacity = '0';
+    header.style.transform = 'translateY(20px)';
+    
+    setTimeout(() => {
+      header.style.transition = 'opacity 1s ease, transform 1s ease';
+      header.style.opacity = '1';
+      header.style.transform = 'translateY(0)';
+    }, 300);
+  }
+
+  // Animate counter values
+  function animateCounter(elementId, targetValue) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    
+    const currentValue = parseInt(element.textContent) || 0;
+    const duration = 1000; // 1 second
+    const step = (targetValue - currentValue) / (duration / 16); // 60fps
+    
+    let current = currentValue;
+    const timer = setInterval(() => {
+      current += step;
+      if ((step > 0 && current >= targetValue) || (step < 0 && current <= targetValue)) {
+        current = targetValue;
+        clearInterval(timer);
+      }
+      element.textContent = Math.round(current);
+    }, 16);
+  }
+
+  // Create confetti effect for successful pairing
+  function createConfetti() {
+    const confettiContainer = document.createElement('div');
+    confettiContainer.style.position = 'fixed';
+    confettiContainer.style.top = '0';
+    confettiContainer.style.left = '0';
+    confettiContainer.style.width = '100%';
+    confettiContainer.style.height = '100%';
+    confettiContainer.style.pointerEvents = 'none';
+    confettiContainer.style.zIndex = '9999';
+    document.body.appendChild(confettiContainer);
+
+    const colors = ['#00ff88', '#00cc66', '#66ff33', '#33cc33', '#9eff9e'];
+    const confettiCount = 100;
+
+    for (let i = 0; i < confettiCount; i++) {
+      const confetti = document.createElement('div');
+      confetti.style.position = 'absolute';
+      confetti.style.width = Math.random() * 10 + 5 + 'px';
+      confetti.style.height = Math.random() * 10 + 5 + 'px';
+      confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+      confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+      confetti.style.left = Math.random() * 100 + 'vw';
+      confetti.style.top = '-10px';
+      confetti.style.opacity = Math.random() * 0.5 + 0.5;
+      confettiContainer.appendChild(confetti);
+
+      // Animate confetti
+      const animation = confetti.animate([
+        { transform: 'translateY(0) rotate(0deg)', opacity: 1 },
+        { transform: `translateY(100vh) rotate(${Math.random() * 360}deg)`, opacity: 0 }
+      ], {
+        duration: Math.random() * 3000 + 2000,
+        easing: 'cubic-bezier(0.1, 0.8, 0.2, 1)'
+      });
+
+      animation.onfinish = () => {
+        confetti.remove();
+        if (confettiContainer.children.length === 0) {
+          confettiContainer.remove();
+        }
+      };
+    }
+  }
+
+  // Add hover effect to buttons
+  document.querySelectorAll('.btn').forEach(button => {
+    button.addEventListener('mouseenter', function() {
+      this.style.transform = 'translateY(-3px) scale(1.02)';
+    });
+    
+    button.addEventListener('mouseleave', function() {
+      this.style.transform = 'translateY(0) scale(1)';
+    });
   });
+
+  // Add ripple effect to buttons
+  document.querySelectorAll('.btn').forEach(button => {
+    button.addEventListener('click', function(e) {
+      const ripple = document.createElement('span');
+      const rect = this.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height);
+      const x = e.clientX - rect.left - size / 2;
+      const y = e.clientY - rect.top - size / 2;
+      
+      ripple.style.width = ripple.style.height = size + 'px';
+      ripple.style.left = x + 'px';
+      ripple.style.top = y + 'px';
+      ripple.classList.add('ripple');
+      
+      this.appendChild(ripple);
+      
+      setTimeout(() => {
+        ripple.remove();
+      }, 600);
+    });
+  });
+
+  // Add CSS for ripple effect
+  const rippleStyle = document.createElement('style');
+  rippleStyle.textContent = `
+    .btn {
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.6);
+      transform: scale(0);
+      animation: ripple-animation 0.6s linear;
+    }
+    
+    @keyframes ripple-animation {
+      to {
+        transform: scale(4);
+        opacity: 0;
+      }
+    }
+  `;
+  document.head.appendChild(rippleStyle);
 });

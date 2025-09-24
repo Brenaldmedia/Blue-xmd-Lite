@@ -1108,7 +1108,7 @@ io.on("connection", (socket) => {
     });
 });
 
-// Cleanup routine to remove old sessions (preserve creds.json) - UPDATED TO 5 MINUTES
+// MODIFIED: Cleanup routine to remove old sessions (preserve creds.json) - CHANGED TO 10 HOURS
 setInterval(() => {
     const sessionsDir = path.join(__dirname, "sessions");
     
@@ -1122,13 +1122,14 @@ setInterval(() => {
         const stats = fs.statSync(sessionPath);
         const age = now - stats.mtimeMs;
         
-        // Clean up sessions older than 5 minutes but preserve creds.json
-        if (age > 5 * 60 * 1000 && !activeConnections.has(session)) {
-            cleanupSession(session, false); // Don't delete entire folder, just clean up
-            console.log(`🧹 Cleaned up session files (preserved creds.json) for: ${session}`);
+        // Clean up sessions older than 10 hours but preserve creds.json
+        // Only clean up if the session is not currently active
+        if (age > 10 * 60 * 60 * 1000 && !activeConnections.has(session)) {
+            cleanupSession(session, false); // Don't delete entire folder, just clean up non-creds files
+            console.log(`🧹 Cleaned up session files (preserved creds.json) for: ${session} (10+ hours old)`);
         }
     });
-}, 5 * 60 * 1000); // Run every 5 minutes
+}, 10 * 60 * 60 * 1000); // Run every 10 hours instead of 5 minutes
 
 // Function to reload existing sessions on server restart
 async function reloadExistingSessions() {
@@ -1163,13 +1164,13 @@ async function reloadExistingSessions() {
                     console.log(`📊 Active sockets increased to: ${activeSockets}`);
                 } else {
                     console.log(`❌ No valid auth state found for session: ${sessionId}`);
-                    // Clean up invalid session
+                    // Clean up invalid session (only delete if no creds.json exists)
                     cleanupSession(sessionId, true);
                 }
             } catch (error) {
                 console.error(`❌ Failed to reload session ${sessionId}:`, error.message);
-                // Clean up problematic session
-                cleanupSession(sessionId, true);
+                // Don't delete the session folder on reload failure - preserve for next restart
+                console.log(`💾 Preserving session folder for ${sessionId} despite reload failure`);
             }
         }
     }
@@ -1189,9 +1190,7 @@ server.listen(port, async () => {
     await reloadExistingSessions();
 });
 
-// Graceful shutdown
-let isShuttingDown = false;
-
+// Graceful shutdown - MODIFIED to preserve session folders
 function gracefulShutdown() {
   if (isShuttingDown) {
     console.log("🛑 Shutdown already in progress...");
@@ -1199,7 +1198,8 @@ function gracefulShutdown() {
   }
   
   isShuttingDown = true;
-  console.log("\n🛑 Shutting down TRACLE LITE server...");
+  console.log("\n🛑 Shutting down TRACLE LITE server gracefully...");
+  console.log("💾 Preserving all session folders for next startup");
   
   // Save persistent data before shutting down
   savePersistentData();
@@ -1211,19 +1211,23 @@ function gracefulShutdown() {
       data.conn.ws.close();
       console.log(`🔒 Closed WhatsApp connection for session: ${sessionId}`);
       connectionCount++;
-    } catch (error) {}
+    } catch (error) {
+      console.error(`❌ Error closing connection for ${sessionId}:`, error.message);
+    }
   });
   
   console.log(`✅ Closed ${connectionCount} WhatsApp connections`);
+  console.log("📁 All session folders preserved for next startup");
   
   const shutdownTimeout = setTimeout(() => {
     console.log("⚠️  Force shutdown after timeout");
     process.exit(0);
-  }, 3000);
+  }, 5000); // Increased timeout for graceful closure
   
   server.close(() => {
     clearTimeout(shutdownTimeout);
     console.log("✅ Server shut down gracefully");
+    console.log("🔄 Sessions will be automatically reloaded on next startup");
     process.exit(0);
   });
 }
@@ -1241,8 +1245,15 @@ process.on("SIGTERM", () => {
 
 process.on("uncaughtException", (error) => {
   console.error("❌ Uncaught Exception:", error.message);
+  // Don't exit on uncaught exceptions to preserve sessions
+  console.log("💾 Preserving sessions despite error");
 });
 
 process.on("unhandledRejection", (reason, promise) => {
   console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
+  // Don't exit on unhandled rejections to preserve sessions
+  console.log("💾 Preserving sessions despite rejection");
 });
+
+// Track if we're in shutdown state
+let isShuttingDown = false;
