@@ -47,6 +47,7 @@ module.exports = {
             if (query.includes("spotify.com/track/")) {
                 await sendMessageWithContext("🎶 Downloading track from Spotify... Please wait.");
 
+                // Try PrinceTech API first
                 try {
                     const api = `https://api.princetechn.com/api/download/spotifydl?apikey=prince&url=${encodeURIComponent(query)}`;
                     const { data } = await axios.get(api, { timeout: 20000 });
@@ -56,13 +57,32 @@ module.exports = {
                         apiUsed = "PrinceTech";
                     }
                 } catch {}
+
+                // Try David Cyril API if PrinceTech fails
+                if (!audioData) {
+                    try {
+                        const api = `https://apis.davidcyriltech.my.id/spotifydl?url=${encodeURIComponent(query)}&apikey=`;
+                        const { data } = await axios.get(api, { timeout: 20000 });
+
+                        if (data?.success && data?.DownloadLink) {
+                            audioData = {
+                                download_url: data.DownloadLink,
+                                title: data.title,
+                                duration: data.duration,
+                                thumbnail: data.thumbnail,
+                                channel: data.channel
+                            };
+                            apiUsed = "David Cyril";
+                        }
+                    } catch {}
+                }
             }
 
-            // If search term or fallback
+            // If search term or fallback for both APIs
             if (!audioData) {
                 await sendMessageWithContext(`🔎 Searching for: *${query}* ...`);
 
-                // First try PrinceTech search
+                // Try PrinceTech search first
                 try {
                     const api = `https://api.princetechn.com/api/search/spotifysearch?apikey=prince&query=${encodeURIComponent(query)}`;
                     const { data } = await axios.get(api, { timeout: 20000 });
@@ -74,53 +94,71 @@ module.exports = {
 
                         if (dlData?.result?.download_url) {
                             audioData = dlData.result;
+                            audioData.title = first.title || audioData.title;
+                            audioData.channel = first.artist || audioData.channel;
+                            audioData.duration = first.duration || audioData.duration;
+                            audioData.thumbnail = first.thumbnail || audioData.thumbnail;
                             apiUsed = "PrinceTech";
                         }
                     }
                 } catch {}
+
+                // If PrinceTech search fails, try David Cyril API with search term
+                if (!audioData) {
+                    try {
+                        // For search terms, we need to convert to a Spotify link first
+                        // We'll use a search API to get a Spotify link, then use David Cyril's API
+                        const searchApi = `https://api.princetechn.com/api/search/spotifysearch?apikey=prince&query=${encodeURIComponent(query)}`;
+                        const { data: searchData } = await axios.get(searchApi, { timeout: 15000 });
+
+                        if (searchData?.results?.length) {
+                            const firstResult = searchData.results[0];
+                            const spotifyUrl = firstResult.url;
+
+                            // Now use David Cyril's API with the Spotify URL
+                            const api = `https://apis.davidcyriltech.my.id/spotifydl?url=${encodeURIComponent(spotifyUrl)}&apikey=`;
+                            const { data } = await axios.get(api, { timeout: 20000 });
+
+                            if (data?.success && data?.DownloadLink) {
+                                audioData = {
+                                    download_url: data.DownloadLink,
+                                    title: data.title || firstResult.title,
+                                    duration: data.duration || firstResult.duration,
+                                    thumbnail: data.thumbnail || firstResult.thumbnail,
+                                    channel: data.channel || firstResult.artist
+                                };
+                                apiUsed = "David Cyril";
+                            }
+                        }
+                    } catch {}
+                }
             }
 
-            // Fallback to David Cyril
-            if (!audioData) {
-                try {
-                    const api = `https://apis.davidcyriltech.my.id/spotifydl?url=${encodeURIComponent(query)}&apikey=`;
-                    const { data } = await axios.get(api, { timeout: 20000 });
-
-                    if (data?.success && data?.DownloadLink) {
-                        audioData = {
-                            download_url: data.DownloadLink,
-                            title: data.title,
-                            duration: data.duration,
-                            thumbnail: data.thumbnail,
-                            channel: data.channel
-                        };
-                        apiUsed = "David Cyril";
-                    }
-                } catch {}
-            }
-
-            if (!audioData) return await sendMessageWithContext("❌ Failed to fetch audio from all APIs.");
+            if (!audioData) return await sendMessageWithContext("❌ Failed to fetch audio from all available sources.");
 
             const { download_url, title, duration, thumbnail, channel } = audioData;
 
             const caption = `🎵 *Track Info*\n\n` +
                             `📖 *Title:* ${title || "Unknown"}\n` +
                             `👤 *Artist/Channel:* ${channel || "Unknown"}\n` +
-                            `⏱️ *Duration:* ${duration || "Unknown"}\n\n` +
+                            `⏱️ *Duration:* ${duration || "Unknown"}\n` +
+                            `🌐 *Source:* ${apiUsed || "API"}\n\n` +
                             `> Powered By BrenaldMedia`;
 
             let thumbBuffer;
             if (thumbnail) {
                 try {
-                    const res = await axios.get(thumbnail, { responseType: "arraybuffer" });
+                    const res = await axios.get(thumbnail, { responseType: "arraybuffer", timeout: 10000 });
                     thumbBuffer = Buffer.from(res.data);
-                } catch {}
+                } catch {
+                    thumbBuffer = null;
+                }
             }
 
             await conn.sendMessage(from, {
                 audio: { url: download_url },
                 mimetype: "audio/mpeg",
-                fileName: `${title || "audio"}.mp3`,
+                fileName: `${(title || "audio").replace(/[^\w\s]/gi, '')}.mp3`,
                 caption: caption,
                 jpegThumbnail: thumbBuffer,
                 contextInfo: {

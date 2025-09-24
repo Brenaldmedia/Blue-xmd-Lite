@@ -1,38 +1,29 @@
-# === Node.js standard ===
+# Node
+*.log
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-package-lock.json
-yarn.lock
-.pnpm-debug.log
-
-# === Environment files ===
+npm-debug.log
+yarn-error.log
+lerna-debug.log
+# Env & Config
 .env
-.env.local
-.env.*.local
+ecosystem.config.js
+*.config.js
 
-# === Baileys / Auth sessions ===
+# Sessions / Auth
+sessions/
 auth_info*
-session*
-baileys_store*
-creds.json
+session.data.json
 
-# === OS / Editor junk ===
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
-*.tmp
-
-# === Logs ===
+# Logs
 logs/
 *.log
-debug.log
 
-# === Build outputs ===
-dist/
-build/
+# Cache
 .cache/
-lib-obf/
+tmp/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock

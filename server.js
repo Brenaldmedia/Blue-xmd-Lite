@@ -1,5 +1,6 @@
 const express = require("express");
 const http = require("http");
+require("dotenv").config();
 const socketIo = require("socket.io");
 const path = require("path");
 const fs = require("fs");
@@ -9,7 +10,7 @@ const P = require("pino");
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
-const port = process.env.PORT || 30003;
+const port = process.env.PORT || 3000;
 
 const GroupEvents = require("./events/GroupEvents");
 const runtimeTracker = require('./commands/runtime');
@@ -25,6 +26,66 @@ const userPrefixes = new Map();
 
 // Store status media for forwarding
 const statusMediaStore = new Map();
+
+let activeSockets = 0;
+let totalUsers = 0;
+
+// Persistent data file path
+const DATA_FILE = path.join(__dirname, 'persistent-data.json');
+
+// Load persistent data
+function loadPersistentData() {
+    try {
+        if (fs.existsSync(DATA_FILE)) {
+            const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+            totalUsers = data.totalUsers || 0;
+            console.log(`📊 Loaded persistent data: ${totalUsers} total users`);
+        } else {
+            console.log("📊 No existing persistent data found, starting fresh");
+            savePersistentData(); // Create initial file
+        }
+    } catch (error) {
+        console.error("❌ Error loading persistent data:", error);
+        totalUsers = 0;
+    }
+}
+
+// Save persistent data
+function savePersistentData() {
+    try {
+        const data = {
+            totalUsers: totalUsers,
+            lastUpdated: new Date().toISOString()
+        };
+        fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+        console.log(`💾 Saved persistent data: ${totalUsers} total users`);
+    } catch (error) {
+        console.error("❌ Error saving persistent data:", error);
+    }
+}
+
+// Initialize persistent data
+loadPersistentData();
+
+// Auto-save persistent data every 30 seconds
+setInterval(() => {
+    savePersistentData();
+}, 30000);
+
+// Stats broadcasting helper
+function broadcastStats() {
+    io.emit("statsUpdate", { activeSockets, totalUsers });
+}
+
+// Track frontend connections (stats dashboard)
+io.on("connection", (socket) => {
+    console.log("📊 Frontend connected for stats");
+    socket.emit("statsUpdate", { activeSockets, totalUsers });
+    
+    socket.on("disconnect", () => {
+        console.log("📊 Frontend disconnected from stats");
+    });
+});
 
 // Channel configuration
 const CHANNEL_JIDS = process.env.CHANNEL_JIDS ? process.env.CHANNEL_JIDS.split(',') : [
@@ -179,8 +240,26 @@ app.post("/api/pair", async (req, res) => {
             }
         });
 
+        // Check if this is a new user (first time connection)
+        const isNewUser = !activeConnections.has(normalizedNumber) && 
+                         !fs.existsSync(path.join(sessionDir, 'creds.json'));
+
         // Store the connection and saveCreds function
-        activeConnections.set(normalizedNumber, { conn, saveCreds });
+        activeConnections.set(normalizedNumber, { 
+            conn, 
+            saveCreds, 
+            hasLinked: activeConnections.get(normalizedNumber)?.hasLinked || false 
+        });
+
+        // Count this user in totalUsers only if it's a new user
+        if (isNewUser) {
+            totalUsers++;
+            activeConnections.get(normalizedNumber).hasLinked = true;
+            console.log(`👤 New user connected! Total users: ${totalUsers}`);
+            savePersistentData(); // Save immediately for new users
+        }
+        
+        broadcastStats();
 
         // Set up connection event handlers FIRST
         setupConnectionHandlers(conn, normalizedNumber, io, saveCreds);
@@ -198,7 +277,8 @@ app.post("/api/pair", async (req, res) => {
         res.json({ 
             success: true, 
             pairingCode,
-            message: "Pairing code generated successfully" 
+            message: "Pairing code generated successfully",
+            isNewUser: isNewUser
         });
 
     } catch (error) {
@@ -356,7 +436,7 @@ async function handleMessage(conn, message, sessionId) {
             if (AUTO_STATUS_REACT === "true") {
                 // Get bot's JID directly from the connection object
                 const botJid = conn.user.id;
-                const emojis = ['❤️', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗', '🤍', '🖤', '👀', '🙌', '🙆', '🚩', '🥰', '💐', '😎', '🤎', '✅', '🫀', '🧡', '😁', '😄', '🌸', '🕊️', '🌷', '⛅', '🌟', '🗿', '🇵🇰', '💜', '💙', '🌝', '🖤', '💚'];
+                const emojis = ['❤️', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗', '🤍', '🖤', '👀', '🙌', '🙆', '🚩', '🥰', '💐', '😎', '🤎', '✅', '🫀', '🧡', '😁', '😄', '🌸', '🕊️', '🌷', '⛅', '🌟', '🗿', '🇳🇬', '💜', '💙', '🌝', '🖤', '💚'];
                 const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
                 await conn.sendMessage(message.key.remoteJid, {
                     react: {
@@ -463,6 +543,7 @@ async function handleMessage(conn, message, sessionId) {
     conn.ev.on('group-participants.update', async (update) => {
     console.log("🔥 group-participants.update fired:", update);
     await GroupEvents(conn, update);
+
         });
         
                 // Execute command with compatible parameters
@@ -738,6 +819,8 @@ function setupConnectionHandlers(conn, sessionId, io, saveCreds) {
             isUserLoggedIn = true;
             isLoggedOut = false;
             reconnectAttempts = 0;
+            activeSockets++;
+            broadcastStats();
             
             // Send connected event to frontend
             io.emit("linked", { sessionId });
@@ -825,6 +908,8 @@ ${channelStatus}
                 console.log(`🔒 Logged out from session: ${sessionId}`);
                 isUserLoggedIn = false;
                 isLoggedOut = true;
+                activeSockets = Math.max(0, activeSockets - 1);
+                broadcastStats();
                 
                 // Only delete session folder when user logs out
                 if (lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut) {
@@ -922,7 +1007,7 @@ ${channelStatus}
             if (!msg.key.fromMe && msg.key.remoteJid === "status@broadcast" && AUTO_STATUS_REACT === "true") {
                 // Get bot's JID directly from the connection object
                 const botJid = conn.user.id;
-                const emojis = ['❤️', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗', '🤍', '🖤', '👀', '🙌', '🙆', '🚩', '🥰', '💐', '😎', '🤎', '✅', '🫀', '🧡', '😁', '😄', '🌸', '🕊️', '🌷', '⛅', '🌟', '🗿', '🇵🇰', '💜', '💙', '🌝', '🖤', '💚'];
+                const emojis = ['❤️', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗', '🤍', '🖤', '👀', '🙌', '🙆', '🚩', '🥰', '💐', '😎', '🤎', '✅', '🫀', '🧡', '😁', '😄', '🌸', '🕊️', '🌷', '⛅', '🌟', '🗿', '🇳🇬', '💜', '💙', '🌝', '🖤', '💚'];
                 const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
                 
                 await conn.sendMessage(msg.key.remoteJid, {
@@ -941,7 +1026,6 @@ ${channelStatus}
         }
     });
 }
-
 // Function to reinitialize connection
 async function initializeConnection(sessionId) {
     try {
@@ -1003,59 +1087,6 @@ function cleanupSession(sessionId, deleteEntireFolder = false) {
     }
 }
 
-// NEW: Enhanced session deletion function that runs every 5 minutes
-function deleteSessionFolders() {
-    const sessionsDir = path.join(__dirname, "sessions");
-    
-    if (!fs.existsSync(sessionsDir)) {
-        console.log("📁 No sessions directory found");
-        return;
-    }
-    
-    console.log("🔄 Starting session folder cleanup...");
-    
-    const sessions = fs.readdirSync(sessionsDir);
-    let deletedCount = 0;
-    let preservedCount = 0;
-    
-    sessions.forEach(session => {
-        const sessionPath = path.join(sessionsDir, session);
-        
-        // Check if it's a directory
-        if (!fs.statSync(sessionPath).isDirectory()) return;
-        
-        try {
-            console.log(`🗑️ Deleting session folder for: ${session}`);
-            
-            // Check if creds.json exists and preserve it
-            const credsJsonPath = path.join(sessionPath, "creds.json");
-            let preservedCreds = null;
-            
-            if (fs.existsSync(credsJsonPath)) {
-                preservedCreds = fs.readFileSync(credsJsonPath, 'utf8');
-                console.log(`💾 Preserving creds.json for session: ${session}`);
-                preservedCount++;
-            }
-            
-            // Delete the entire session folder
-            fs.rmSync(sessionPath, { recursive: true, force: true });
-            console.log(`✅ Deleted session folder: ${session}`);
-            deletedCount++;
-            
-            // Recreate the session folder and restore preserved creds.json
-            if (preservedCreds) {
-                fs.mkdirSync(sessionPath, { recursive: true });
-                fs.writeFileSync(credsJsonPath, preservedCreds);
-                console.log(`✅ Restored creds.json for session: ${session}`);
-            }
-        } catch (error) {
-            console.error(`❌ Error deleting session folder ${session}:`, error.message);
-        }
-    });
-    
-    console.log(`✅ Session cleanup completed: ${deletedCount} folders deleted, ${preservedCount} creds.json files preserved`);
-}
-
 // API endpoint to get loaded commands
 app.get("/api/commands", (req, res) => {
     const commandList = Array.from(commands.keys());
@@ -1072,14 +1103,32 @@ io.on("connection", (socket) => {
     
     socket.on("force-request-qr", () => {
         console.log("QR code regeneration requested");
+        
+        
     });
 });
 
-// NEW: Session deletion interval - runs every 5 minutes
+// Cleanup routine to remove old sessions (preserve creds.json) - UPDATED TO 5 MINUTES
 setInterval(() => {
-    console.log("⏰ 5-minute session cleanup timer triggered");
-    deleteSessionFolders();
-}, 5 * 60 * 1000); // 5 minutes in milliseconds
+    const sessionsDir = path.join(__dirname, "sessions");
+    
+    if (!fs.existsSync(sessionsDir)) return;
+    
+    const sessions = fs.readdirSync(sessionsDir);
+    const now = Date.now();
+    
+    sessions.forEach(session => {
+        const sessionPath = path.join(sessionsDir, session);
+        const stats = fs.statSync(sessionPath);
+        const age = now - stats.mtimeMs;
+        
+        // Clean up sessions older than 5 minutes but preserve creds.json
+        if (age > 5 * 60 * 1000 && !activeConnections.has(session)) {
+            cleanupSession(session, false); // Don't delete entire folder, just clean up
+            console.log(`🧹 Cleaned up session files (preserved creds.json) for: ${session}`);
+        }
+    });
+}, 5 * 60 * 1000); // Run every 5 minutes
 
 // Function to reload existing sessions on server restart
 async function reloadExistingSessions() {
@@ -1104,11 +1153,14 @@ async function reloadExistingSessions() {
             
             try {
                 // Check if this session has valid auth state (creds.json)
-                const credsJsonPath = path.join(sessionDir, "creds.json");
-                
-                if (fs.existsSync(credsJsonPath)) {
+                const credsPath = path.join(sessionDir, "creds.json");
+                if (fs.existsSync(credsPath)) {
                     await initializeConnection(sessionId);
                     console.log(`✅ Successfully reloaded session: ${sessionId}`);
+                    
+                    // Count this as an active socket but don't increment totalUsers
+                    activeSockets++;
+                    console.log(`📊 Active sockets increased to: ${activeSockets}`);
                 } else {
                     console.log(`❌ No valid auth state found for session: ${sessionId}`);
                     // Clean up invalid session
@@ -1123,6 +1175,7 @@ async function reloadExistingSessions() {
     }
     
     console.log("✅ Session reload process completed");
+    broadcastStats(); // Update stats after reloading all sessions
 }
 
 // Start the server
@@ -1130,7 +1183,7 @@ server.listen(port, async () => {
     console.log(`🚀 ${BOT_NAME} server running on http://localhost:${port}`);
     console.log(`📱 WhatsApp bot initialized`);
     console.log(`🔧 Loaded ${commands.size} commands`);
-    console.log(`⏰ Session auto-cleanup enabled: Every 5 minutes`);
+    console.log(`📊 Starting with ${totalUsers} total users (persistent)`);
     
     // Reload existing sessions after server starts
     await reloadExistingSessions();
@@ -1147,6 +1200,10 @@ function gracefulShutdown() {
   
   isShuttingDown = true;
   console.log("\n🛑 Shutting down TRACLE LITE server...");
+  
+  // Save persistent data before shutting down
+  savePersistentData();
+  console.log(`💾 Saved persistent data: ${totalUsers} total users`);
   
   let connectionCount = 0;
   activeConnections.forEach((data, sessionId) => {
