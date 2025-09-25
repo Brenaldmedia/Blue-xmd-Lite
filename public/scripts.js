@@ -14,13 +14,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initialize animations
   initAnimations();
 
-  // Show welcome modal on page load with enhanced animation
-  setTimeout(() => {
-    welcomeModal.style.display = 'flex';
-    setTimeout(() => {
-      welcomeModal.classList.add('active');
-    }, 50);
-  }, 800);
+  // Check if modal has been shown before using sessionStorage
+  const modalShown = sessionStorage.getItem('welcomeModalShown');
 
   // Close modal functions
   function closeModal() {
@@ -32,6 +27,11 @@ document.addEventListener("DOMContentLoaded", () => {
   
   modalClose.addEventListener('click', closeModal);
 
+  // Close modal when clicking on fork and star buttons
+  document.querySelectorAll('.github-buttons a').forEach(button => {
+    button.addEventListener('click', closeModal);
+  });
+
   // Close modal when clicking outside
   welcomeModal.addEventListener('click', (e) => {
     if (e.target === welcomeModal) {
@@ -39,38 +39,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Mobile navigation toggle
-  navToggle.addEventListener('click', () => {
-    navLinks.classList.toggle('active');
-    navToggle.innerHTML = navLinks.classList.contains('active') ?
-      '<i class="fas fa-times"></i>' : '<i class="fas fa-bars"></i>';
-  });
-
-  // Close mobile menu when clicking on links
-  document.querySelectorAll('.nav-links a').forEach(link => {
-    link.addEventListener('click', () => {
-      navLinks.classList.remove('active');
-      navToggle.innerHTML = '<i class="fas fa-bars"></i>';
-    });
-  });
-
-  // ✅ Listen for stats updates from server
-  socket.on("statsUpdate", ({ activeSockets, totalUsers }) => {
-    animateCounter("activeSockets", activeSockets);
-    animateCounter("totalUsers", totalUsers);
-  });
-
-  // Navbar scroll effect
-  window.addEventListener('scroll', () => {
-    if (window.scrollY > 50) {
-      nav.classList.add('nav-scrolled');
-    } else {
-      nav.classList.remove('nav-scrolled');
-    }
-  });
-
-  // Request pairing code
+  // Show modal only when requesting pairing code (if not shown before)
   requestPairingBtn.addEventListener("click", async () => {
+    // Show modal only if it hasn't been shown before in this session
+    if (!modalShown) {
+      welcomeModal.style.display = 'flex';
+      setTimeout(() => {
+        welcomeModal.classList.add('active');
+      }, 50);
+      
+      // Mark as shown in sessionStorage
+      sessionStorage.setItem('welcomeModalShown', 'true');
+    }
+
+    // Rest of your existing pairing code logic...
     const number = phoneInput.value.trim();
     if (!number) {
       showStatus("❌ Please enter your phone number (with country code).", "error");
@@ -144,6 +126,36 @@ document.addEventListener("DOMContentLoaded", () => {
     } finally {
       requestPairingBtn.disabled = false;
       requestPairingBtn.classList.remove("loading");
+    }
+  });
+
+  // Mobile navigation toggle
+  navToggle.addEventListener('click', () => {
+    navLinks.classList.toggle('active');
+    navToggle.innerHTML = navLinks.classList.contains('active') ?
+      '<i class="fas fa-times"></i>' : '<i class="fas fa-bars"></i>';
+  });
+
+  // Close mobile menu when clicking on links
+  document.querySelectorAll('.nav-links a').forEach(link => {
+    link.addEventListener('click', () => {
+      navLinks.classList.remove('active');
+      navToggle.innerHTML = '<i class="fas fa-bars"></i>';
+    });
+  });
+
+  // ✅ Listen for stats updates from server
+  socket.on("statsUpdate", ({ activeSockets, totalUsers }) => {
+    animateCounter("activeSockets", activeSockets);
+    animateCounter("totalUsers", totalUsers);
+  });
+
+  // Navbar scroll effect
+  window.addEventListener('scroll', () => {
+    if (window.scrollY > 50) {
+      nav.classList.add('nav-scrolled');
+    } else {
+      nav.classList.remove('nav-scrolled');
     }
   });
 
@@ -330,7 +342,7 @@ document.addEventListener("DOMContentLoaded", () => {
         { transform: 'translateY(0) rotate(0deg)', opacity: 1 },
         { transform: `translateY(100vh) rotate(${Math.random() * 360}deg)`, opacity: 0 }
       ], {
-        duration: Math.random() * 3000 + 2000,
+        duration : Math.random() * 3000 + 2000,
         easing: 'cubic-bezier(0.1, 0.8, 0.2, 1)'
       });
 

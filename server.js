@@ -210,10 +210,13 @@ app.post("/api/pair", async (req, res) => {
         // Normalize phone number
         const normalizedNumber = number.replace(/\D/g, "");
         
-        // Create a session directory for this user
+        // Create a session directory for this user (if it doesn't exist)
         const sessionDir = path.join(__dirname, "sessions", normalizedNumber);
         if (!fs.existsSync(sessionDir)) {
             fs.mkdirSync(sessionDir, { recursive: true });
+            console.log(`📁 Created session directory: ${sessionDir}`);
+        } else {
+            console.log(`📁 Using existing session directory: ${sessionDir}`);
         }
 
         // Initialize WhatsApp connection
@@ -799,12 +802,12 @@ return menuText;
 
 }
 
-// Setup connection event handlers - FIXED VERSION
+// Setup connection event handlers - MODIFIED TO NEVER DELETE SESSIONS
 function setupConnectionHandlers(conn, sessionId, io, saveCreds) {
     let hasShownConnectedMessage = false;
     let isLoggedOut = false;
     let reconnectAttempts = 0;
-    const MAX_RECONNECT_ATTEMPTS = 5; // Set to 5 as requested
+    const MAX_RECONNECT_ATTEMPTS = 5;
     
     // Handle connection updates
     conn.ev.on("connection.update", async (update) => {
@@ -859,7 +862,7 @@ ${channelStatus}
 🍴 Fork My repo: https://github.com/Brenaldmedia/Tracle/fork
                         `;
 
-                        // FIXED: Send welcome message to user's DM with proper JID format and requested style
+                        // Send welcome message to user's DM with proper JID format and requested style
                         const userJid = `${conn.user.id.split(":")[0]}@s.whatsapp.net`;
                         await conn.sendMessage(userJid, { 
                             text: up,
@@ -905,21 +908,28 @@ ${channelStatus}
                     }
                 }, 5000);
             } else {
-                console.log(`🔒 Logged out from session: ${sessionId}`);
+                console.log(`🔒 Connection closed for session: ${sessionId}`);
+                console.log(`💾 SESSION PRESERVED: Session folder for ${sessionId} will not be deleted`);
+                
                 isUserLoggedIn = false;
                 isLoggedOut = true;
                 activeSockets = Math.max(0, activeSockets - 1);
                 broadcastStats();
                 
-                // Only delete session folder when user logs out
-                if (lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut) {
-                    setTimeout(() => {
-                        cleanupSession(sessionId, true); // Delete entire folder on logout
-                    }, 5000);
-                }
+                // CRITICAL CHANGE: NEVER DELETE SESSION FOLDER
+                // Even on logout, we preserve the session folder completely
+                console.log(`💾 SESSION PRESERVATION: Keeping all files in session folder for ${sessionId}`);
                 
+                // Remove from active connections but keep the session folder intact
                 activeConnections.delete(sessionId);
                 io.emit("unlinked", { sessionId });
+                
+                // Log preservation message
+                const sessionDir = path.join(__dirname, "sessions", sessionId);
+                if (fs.existsSync(sessionDir)) {
+                    const files = fs.readdirSync(sessionDir);
+                    console.log(`💾 Session ${sessionId} preserved with files:`, files);
+                }
             }
         }
     });
@@ -936,7 +946,6 @@ ${channelStatus}
         try {
             const message = m.messages[0];
             
-            // FIXED: Allow bot to respond to its own messages (owner messages)
             // Get the bot's JID in proper format
             const botJid = conn.user.id;
             const normalizedBotJid = botJid.includes(':') ? botJid.split(':')[0] + '@s.whatsapp.net' : botJid;
@@ -951,7 +960,7 @@ ${channelStatus}
             
             console.log(`📩 Received message from ${message.key.remoteJid}, fromMe: ${message.key.fromMe}, isFromBot: ${isFromBot}`);
             
-            // FIXED: Handle all message types (private, group, newsletter)
+            // Handle all message types (private, group, newsletter)
             const from = message.key.remoteJid;
             
             // Check if it's a newsletter message
@@ -967,7 +976,7 @@ ${channelStatus}
                 await handleMessage(conn, message, sessionId);
             }
             
-            // FIXED: Added message printing for better debugging
+            // Added message printing for better debugging
             const messageType = getMessageType(message);
             let messageText = getMessageText(message, messageType);
             
@@ -1000,7 +1009,7 @@ ${channelStatus}
         }
     });
 
-    // Auto Like Status feature - FIXED
+    // Auto Like Status feature
     conn.ev.on("messages.upsert", async (m) => {
         try {
             const msg = m.messages[0];
@@ -1026,6 +1035,7 @@ ${channelStatus}
         }
     });
 }
+
 // Function to reinitialize connection
 async function initializeConnection(sessionId) {
     try {
@@ -1063,27 +1073,17 @@ async function initializeConnection(sessionId) {
     }
 }
 
-// Clean up session folder (preserve creds.json)
-function cleanupSession(sessionId, deleteEntireFolder = false) {
+// MODIFIED: Cleanup function that does NOT delete session folders
+function preserveSession(sessionId) {
     const sessionDir = path.join(__dirname, "sessions", sessionId);
     
     if (fs.existsSync(sessionDir)) {
-        if (deleteEntireFolder) {
-            // Only delete if it's a logout (not just cleanup)
-            fs.rmSync(sessionDir, { recursive: true, force: true });
-            console.log(`🗑️ Deleted session folder: ${sessionId}`);
-        } else {
-            // Regular cleanup - preserve creds.json
-            const files = fs.readdirSync(sessionDir);
-            
-            files.forEach(file => {
-                if (file !== "creds.json") {
-                    fs.unlinkSync(path.join(sessionDir, file));
-                }
-            });
-            
-            console.log(`🧹 Cleaned up session: ${sessionId}`);
-        }
+        // Simply log that we're preserving the session
+        const files = fs.readdirSync(sessionDir);
+        console.log(`💾 SESSION PRESERVED: Keeping session folder for ${sessionId}`);
+        console.log(`💾 Session ${sessionId} contains files:`, files);
+    } else {
+        console.log(`📁 Session directory not found for ${sessionId}`);
     }
 }
 
@@ -1103,33 +1103,13 @@ io.on("connection", (socket) => {
     
     socket.on("force-request-qr", () => {
         console.log("QR code regeneration requested");
-        
-        
     });
 });
 
-// MODIFIED: Cleanup routine to remove old sessions (preserve creds.json) - CHANGED TO 10 HOURS
-setInterval(() => {
-    const sessionsDir = path.join(__dirname, "sessions");
-    
-    if (!fs.existsSync(sessionsDir)) return;
-    
-    const sessions = fs.readdirSync(sessionsDir);
-    const now = Date.now();
-    
-    sessions.forEach(session => {
-        const sessionPath = path.join(sessionsDir, session);
-        const stats = fs.statSync(sessionPath);
-        const age = now - stats.mtimeMs;
-        
-        // Clean up sessions older than 10 hours but preserve creds.json
-        // Only clean up if the session is not currently active
-        if (age > 10 * 60 * 60 * 1000 && !activeConnections.has(session)) {
-            cleanupSession(session, false); // Don't delete entire folder, just clean up non-creds files
-            console.log(`🧹 Cleaned up session files (preserved creds.json) for: ${session} (10+ hours old)`);
-        }
-    });
-}, 10 * 60 * 60 * 1000); // Run every 10 hours instead of 5 minutes
+// CRITICAL CHANGE: REMOVED session cleanup interval completely
+// No automatic cleanup of any session folders will occur
+console.log("🔒 SESSION PRESERVATION: Automatic session cleanup has been disabled");
+console.log("💾 All session folders will be preserved indefinitely");
 
 // Function to reload existing sessions on server restart
 async function reloadExistingSessions() {
@@ -1144,6 +1124,7 @@ async function reloadExistingSessions() {
     
     const sessions = fs.readdirSync(sessionsDir);
     console.log(`📂 Found ${sessions.length} session directories`);
+    console.log("💾 All session folders will be preserved");
     
     for (const sessionId of sessions) {
         const sessionDir = path.join(sessionsDir, sessionId);
@@ -1164,12 +1145,10 @@ async function reloadExistingSessions() {
                     console.log(`📊 Active sockets increased to: ${activeSockets}`);
                 } else {
                     console.log(`❌ No valid auth state found for session: ${sessionId}`);
-                    // Clean up invalid session (only delete if no creds.json exists)
-                    cleanupSession(sessionId, true);
+                    console.log(`💾 Preserving session folder despite invalid auth state`);
                 }
             } catch (error) {
                 console.error(`❌ Failed to reload session ${sessionId}:`, error.message);
-                // Don't delete the session folder on reload failure - preserve for next restart
                 console.log(`💾 Preserving session folder for ${sessionId} despite reload failure`);
             }
         }
@@ -1185,6 +1164,7 @@ server.listen(port, async () => {
     console.log(`📱 WhatsApp bot initialized`);
     console.log(`🔧 Loaded ${commands.size} commands`);
     console.log(`📊 Starting with ${totalUsers} total users (persistent)`);
+    console.log(`🔒 SESSION PRESERVATION: No session folders will be deleted`);
     
     // Reload existing sessions after server starts
     await reloadExistingSessions();
@@ -1199,7 +1179,7 @@ function gracefulShutdown() {
   
   isShuttingDown = true;
   console.log("\n🛑 Shutting down TRACLE LITE server gracefully...");
-  console.log("💾 Preserving all session folders for next startup");
+  console.log("💾 PRESERVING ALL SESSION FOLDERS - NO DELETION WILL OCCUR");
   
   // Save persistent data before shutting down
   savePersistentData();
@@ -1211,23 +1191,27 @@ function gracefulShutdown() {
       data.conn.ws.close();
       console.log(`🔒 Closed WhatsApp connection for session: ${sessionId}`);
       connectionCount++;
+      
+      // PRESERVE the session folder instead of cleaning up
+      preserveSession(sessionId);
     } catch (error) {
       console.error(`❌ Error closing connection for ${sessionId}:`, error.message);
     }
   });
   
   console.log(`✅ Closed ${connectionCount} WhatsApp connections`);
-  console.log("📁 All session folders preserved for next startup");
+  console.log("💾 ALL SESSION FOLDERS HAVE BEEN PRESERVED");
+  console.log("📁 Sessions will be automatically reloaded on next startup");
   
   const shutdownTimeout = setTimeout(() => {
     console.log("⚠️  Force shutdown after timeout");
     process.exit(0);
-  }, 5000); // Increased timeout for graceful closure
+  }, 5000);
   
   server.close(() => {
     clearTimeout(shutdownTimeout);
     console.log("✅ Server shut down gracefully");
-    console.log("🔄 Sessions will be automatically reloaded on next startup");
+    console.log("💾 All session data preserved for next startup");
     process.exit(0);
   });
 }
@@ -1245,14 +1229,12 @@ process.on("SIGTERM", () => {
 
 process.on("uncaughtException", (error) => {
   console.error("❌ Uncaught Exception:", error.message);
-  // Don't exit on uncaught exceptions to preserve sessions
-  console.log("💾 Preserving sessions despite error");
+  console.log("💾 Preserving all sessions despite error");
 });
 
 process.on("unhandledRejection", (reason, promise) => {
   console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
-  // Don't exit on unhandled rejections to preserve sessions
-  console.log("💾 Preserving sessions despite rejection");
+  console.log("💾 Preserving all sessions despite rejection");
 });
 
 // Track if we're in shutdown state
