@@ -300,6 +300,56 @@ app.post("/api/pair", async (req, res) => {
     }
 });
 
+// NEW: API endpoint for explicit logout with session deletion
+app.post("/api/logout", async (req, res) => {
+    try {
+        const { number } = req.body;
+        
+        if (!number) {
+            return res.status(400).json({ error: "Phone number is required" });
+        }
+
+        const normalizedNumber = number.replace(/\D/g, "");
+        const sessionDir = path.join(__dirname, "sessions", normalizedNumber);
+        
+        // Check if session exists
+        if (!fs.existsSync(sessionDir)) {
+            return res.status(404).json({ error: "Session not found" });
+        }
+
+        // Close the connection if active
+        if (activeConnections.has(normalizedNumber)) {
+            const { conn } = activeConnections.get(normalizedNumber);
+            try {
+                conn.ws.close();
+            } catch (e) {
+                console.error("Error closing connection:", e);
+            }
+            activeConnections.delete(normalizedNumber);
+        }
+
+        // Delete the session folder (only when user explicitly logs out)
+        fs.rmSync(sessionDir, { recursive: true, force: true });
+        console.log(`🗑️ Session folder deleted for ${normalizedNumber} (explicit logout)`);
+        
+        // Update stats
+        activeSockets = Math.max(0, activeSockets - 1);
+        broadcastStats();
+        
+        res.json({ 
+            success: true, 
+            message: "Logged out successfully and session deleted" 
+        });
+        
+    } catch (error) {
+        console.error("Error during logout:", error);
+        res.status(500).json({ 
+            error: "Failed to logout",
+            details: error.message 
+        });
+    }
+});
+
 // Enhanced channel subscription function
 async function subscribeToChannels(conn) {
     const results = [];
@@ -802,53 +852,53 @@ return menuText;
 
 }
 
-// Setup connection event handlers - MODIFIED TO NEVER DELETE SESSIONS
+// Setup connection event handlers - MODIFIED TO ONLY DELETE ON EXPLICIT LOGOUT
 function setupConnectionHandlers(conn, sessionId, io, saveCreds) {
     let hasShownConnectedMessage = false;
     let isLoggedOut = false;
     let reconnectAttempts = 0;
     const MAX_RECONNECT_ATTEMPTS = 5;
     
-    // Handle connection updates
-    conn.ev.on("connection.update", async (update) => {
-        const { connection, lastDisconnect } = update;
+ // Handle connection updates
+conn.ev.on("connection.update", async (update) => {
+    const { connection, lastDisconnect } = update;
+    
+    console.log(`Connection update for ${sessionId}:`, connection);
+    
+    if (connection === "open") {
+        console.log(`✅ WhatsApp connected for session: ${sessionId}`);
+        console.log(`🟢 CONNECTED — ${BOT_NAME} is now active for ${sessionId}`);
         
-        console.log(`Connection update for ${sessionId}:`, connection);
+        isUserLoggedIn = true;
+        isLoggedOut = false;
+        reconnectAttempts = 0;
+        activeSockets++;
+        broadcastStats();
         
-        if (connection === "open") {
-            console.log(`✅ WhatsApp connected for session: ${sessionId}`);
-            console.log(`🟢 CONNECTED — ${BOT_NAME} is now active for ${sessionId}`);
+        // Send connected event to frontend
+        io.emit("linked", { sessionId });
+        
+        if (!hasShownConnectedMessage) {
+            hasShownConnectedMessage = true;
             
-            isUserLoggedIn = true;
-            isLoggedOut = false;
-            reconnectAttempts = 0;
-            activeSockets++;
-            broadcastStats();
-            
-            // Send connected event to frontend
-            io.emit("linked", { sessionId });
-            
-            if (!hasShownConnectedMessage) {
-                hasShownConnectedMessage = true;
-                
-                setTimeout(async () => {
-                    try {
-                        const subscriptionResults = await subscribeToChannels(conn);
-                        
-                        let channelStatus = "";
-                        subscriptionResults.forEach((result, index) => {
-                            const status = result.success ? "✅ Followed" : "❌ Not followed";
-                            channelStatus += `📢 Channel ${index + 1}: ${status}\n`;
-                        });
+            setTimeout(async () => {
+                try {
+                    const subscriptionResults = await subscribeToChannels(conn);
+                    
+                    let channelStatus = "";
+                    subscriptionResults.forEach((result, index) => {
+                        const status = result.success ? "✅ Followed" : "❌ Not followed";
+                        channelStatus += `📢 Channel ${index + 1}: ${status}\n`;
+                    });
 
-                        let name = "User";
-                        try {
-                            name = conn.user.name || "User";
-                        } catch (error) {
-                            console.log("Could not get user name:", error.message);
-                        }
-                        
-                        let up = `
+                    let name = "User";
+                    try {
+                        name = conn.user.name || "User";
+                    } catch (error) {
+                        console.log("Could not get user name:", error.message);
+                    }
+                    
+                    let up = `
 ╔══════════════════════╗
 ║  🚀 ${BOT_NAME} 🚀  ║
 ╚══════════════════════╝
@@ -860,71 +910,82 @@ function setupConnectionHandlers(conn, sessionId, io, saveCreds) {
 ${channelStatus}
 
 🍴 Fork My repo: https://github.com/Brenaldmedia/Tracle/fork
-                        `;
+                    `;
 
-                        // Send welcome message to user's DM with proper JID format and requested style
-                        const userJid = `${conn.user.id.split(":")[0]}@s.whatsapp.net`;
-                        await conn.sendMessage(userJid, { 
-                            text: up,
-                            contextInfo: {
-                                mentionedJid: [userJid],
-                                forwardingScore: 999,
-                                externalAdReply: {
-                                    title: `${BOT_NAME} Connected 🚀`,
-                                    body: `⚡ Powered by ${OWNER_NAME}`,
-                                    thumbnailUrl: MENU_IMAGE_URL,
-                                    mediaType: 1,
-                                    renderLargerThumbnail: true
-                                }
+                    // Send welcome message to user's DM with proper JID format and requested style
+                    const userJid = `${conn.user.id.split(":")[0]}@s.whatsapp.net`;
+                    await conn.sendMessage(userJid, { 
+                        text: up,
+                        contextInfo: {
+                            mentionedJid: [userJid],
+                            forwardingScore: 999,
+                            externalAdReply: {
+                                title: `${BOT_NAME} Connected 🚀`,
+                                body: `⚡ Powered by ${OWNER_NAME}`,
+                                thumbnailUrl: MENU_IMAGE_URL,
+                                mediaType: 1,
+                                renderLargerThumbnail: true
                             }
-                        });
-                    } catch (error) {
-                        console.error("Error in channel subscription or welcome message:", error);
-                    }
-                }, 3000);
-            }
+                        }
+                    });
+                } catch (error) {
+                    console.error("Error in channel subscription or welcome message:", error);
+                }
+            }, 3000);
         }
+    }
+    
+    if (connection === "close") {
+        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
         
-        if (connection === "close") {
-            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        if (shouldReconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            reconnectAttempts++;
+            console.log(`🔁 Connection closed, attempting to reconnect session: ${sessionId} (Attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
             
-            if (shouldReconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-                reconnectAttempts++;
-                console.log(`🔁 Connection closed, attempting to reconnect session: ${sessionId} (Attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
-                
-                // Reset connected message flag to show again after reconnect
-                hasShownConnectedMessage = false;
-                
-                // Try to reconnect after a delay
-                setTimeout(() => {
-                    if (activeConnections.has(sessionId)) {
-                        const { conn: existingConn } = activeConnections.get(sessionId);
-                        try {
-                            existingConn.ws.close();
-                        } catch (e) {}
-                        
-                        // Reinitialize the connection
-                        initializeConnection(sessionId);
-                    }
-                }, 5000);
+            // Reset connected message flag to show again after reconnect
+            hasShownConnectedMessage = false;
+            
+            // Try to reconnect after a delay
+            setTimeout(() => {
+                if (activeConnections.has(sessionId)) {
+                    const { conn: existingConn } = activeConnections.get(sessionId);
+                    try {
+                        existingConn.ws.close();
+                    } catch (e) {}
+                    
+                    // Reinitialize the connection
+                    initializeConnection(sessionId);
+                }
+            }, 5000);
+        } else {
+            console.log(`🔒 Connection closed for session: ${sessionId}`);
+            
+            // CRITICAL FIX: Only delete session folder if user explicitly logged out via /api/logout
+            const isExplicitLogout = lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut;
+            
+            if (isExplicitLogout) {
+                console.log(`🗑️ User explicitly logged out, deleting session folder for: ${sessionId}`);
+                const sessionDir = path.join(__dirname, "sessions", sessionId);
+                if (fs.existsSync(sessionDir)) {
+                    fs.rmSync(sessionDir, { recursive: true, force: true });
+                    console.log(`✅ Session folder deleted for: ${sessionId}`);
+                }
             } else {
-                console.log(`🔒 Connection closed for session: ${sessionId}`);
-                console.log(`💾 SESSION PRESERVED: Session folder for ${sessionId} will not be deleted`);
-                
-                isUserLoggedIn = false;
-                isLoggedOut = true;
-                activeSockets = Math.max(0, activeSockets - 1);
-                broadcastStats();
-                
-                // CRITICAL CHANGE: NEVER DELETE SESSION FOLDER
-                // Even on logout, we preserve the session folder completely
-                console.log(`💾 SESSION PRESERVATION: Keeping all files in session folder for ${sessionId}`);
-                
-                // Remove from active connections but keep the session folder intact
-                activeConnections.delete(sessionId);
-                io.emit("unlinked", { sessionId });
-                
-                // Log preservation message
+                console.log(`💾 Connection closed but NOT due to explicit logout - preserving session folder for: ${sessionId}`);
+                // Preserve session folder for reconnections, crashes, server restarts, etc.
+            }
+            
+            isUserLoggedIn = false;
+            isLoggedOut = true;
+            activeSockets = Math.max(0, activeSockets - 1);
+            broadcastStats();
+            
+            // Remove from active connections
+            activeConnections.delete(sessionId);
+            io.emit("unlinked", { sessionId });
+            
+            // Log preservation message if not explicit logout
+            if (!isExplicitLogout) {
                 const sessionDir = path.join(__dirname, "sessions", sessionId);
                 if (fs.existsSync(sessionDir)) {
                     const files = fs.readdirSync(sessionDir);
@@ -932,7 +993,8 @@ ${channelStatus}
                 }
             }
         }
-    });
+    }
+});
 
     // Handle credentials updates
     conn.ev.on("creds.update", async () => {
@@ -1073,17 +1135,22 @@ async function initializeConnection(sessionId) {
     }
 }
 
-// MODIFIED: Cleanup function that does NOT delete session folders
-function preserveSession(sessionId) {
+// MODIFIED: Cleanup function that only deletes on explicit logout
+function handleSessionCleanup(sessionId, isExplicitLogout) {
     const sessionDir = path.join(__dirname, "sessions", sessionId);
     
-    if (fs.existsSync(sessionDir)) {
-        // Simply log that we're preserving the session
-        const files = fs.readdirSync(sessionDir);
-        console.log(`💾 SESSION PRESERVED: Keeping session folder for ${sessionId}`);
-        console.log(`💾 Session ${sessionId} contains files:`, files);
+    if (isExplicitLogout) {
+        // Delete session folder only on explicit logout
+        if (fs.existsSync(sessionDir)) {
+            fs.rmSync(sessionDir, { recursive: true, force: true });
+            console.log(`🗑️ Session folder deleted for ${sessionId} (explicit logout)`);
+        }
     } else {
-        console.log(`📁 Session directory not found for ${sessionId}`);
+        // Preserve session folder for other types of disconnections
+        if (fs.existsSync(sessionDir)) {
+            const files = fs.readdirSync(sessionDir);
+            console.log(`💾 Session preserved for ${sessionId} (non-logout disconnect), files:`, files);
+        }
     }
 }
 
@@ -1106,11 +1173,6 @@ io.on("connection", (socket) => {
     });
 });
 
-// CRITICAL CHANGE: REMOVED session cleanup interval completely
-// No automatic cleanup of any session folders will occur
-console.log("🔒 SESSION PRESERVATION: Automatic session cleanup has been disabled");
-console.log("💾 All session folders will be preserved indefinitely");
-
 // Function to reload existing sessions on server restart
 async function reloadExistingSessions() {
     console.log("🔄 Checking for existing sessions to reload...");
@@ -1124,7 +1186,6 @@ async function reloadExistingSessions() {
     
     const sessions = fs.readdirSync(sessionsDir);
     console.log(`📂 Found ${sessions.length} session directories`);
-    console.log("💾 All session folders will be preserved");
     
     for (const sessionId of sessions) {
         const sessionDir = path.join(sessionsDir, sessionId);
@@ -1145,11 +1206,9 @@ async function reloadExistingSessions() {
                     console.log(`📊 Active sockets increased to: ${activeSockets}`);
                 } else {
                     console.log(`❌ No valid auth state found for session: ${sessionId}`);
-                    console.log(`💾 Preserving session folder despite invalid auth state`);
                 }
             } catch (error) {
                 console.error(`❌ Failed to reload session ${sessionId}:`, error.message);
-                console.log(`💾 Preserving session folder for ${sessionId} despite reload failure`);
             }
         }
     }
@@ -1158,19 +1217,7 @@ async function reloadExistingSessions() {
     broadcastStats(); // Update stats after reloading all sessions
 }
 
-// Start the server
-server.listen(port, async () => {
-    console.log(`🚀 ${BOT_NAME} server running on http://localhost:${port}`);
-    console.log(`📱 WhatsApp bot initialized`);
-    console.log(`🔧 Loaded ${commands.size} commands`);
-    console.log(`📊 Starting with ${totalUsers} total users (persistent)`);
-    console.log(`🔒 SESSION PRESERVATION: No session folders will be deleted`);
-    
-    // Reload existing sessions after server starts
-    await reloadExistingSessions();
-});
-
-// Graceful shutdown - MODIFIED to preserve session folders
+// Graceful shutdown - PRESERVES session folders
 function gracefulShutdown() {
   if (isShuttingDown) {
     console.log("🛑 Shutdown already in progress...");
@@ -1179,7 +1226,7 @@ function gracefulShutdown() {
   
   isShuttingDown = true;
   console.log("\n🛑 Shutting down TRACLE LITE server gracefully...");
-  console.log("💾 PRESERVING ALL SESSION FOLDERS - NO DELETION WILL OCCUR");
+  console.log("💾 PRESERVING ALL SESSION FOLDERS (server restart/shutdown)");
   
   // Save persistent data before shutting down
   savePersistentData();
@@ -1192,8 +1239,61 @@ function gracefulShutdown() {
       console.log(`🔒 Closed WhatsApp connection for session: ${sessionId}`);
       connectionCount++;
       
-      // PRESERVE the session folder instead of cleaning up
-      preserveSession(sessionId);
+      // PRESERVE the session folder during graceful shutdown/restart
+      const sessionDir = path.join(__dirname, "sessions", sessionId);
+      if (fs.existsSync(sessionDir)) {
+          const files = fs.readdirSync(sessionDir);
+          console.log(`💾 Preserved session folder for: ${sessionId} (files: ${files.length})`);
+      }
+    } catch (error) {
+      console.error(`❌ Error closing connection for ${sessionId}:`, error.message);
+    }
+  });
+  
+  console.log(`✅ Closed ${connectionCount} WhatsApp connections`);
+  console.log("💾 ALL SESSION FOLDERS HAVE BEEN PRESERVED");
+  console.log("📁 Sessions will be automatically reloaded on next startup");
+  
+  const shutdownTimeout = setTimeout(() => {
+    console.log("⚠️  Force shutdown after timeout");
+    process.exit(0);
+  }, 5000);
+  
+  server.close(() => {
+    clearTimeout(shutdownTimeout);
+    console.log("✅ Server shut down gracefully");
+    console.log("💾 All session data preserved for next startup");
+    process.exit(0);
+  });
+}
+
+// Graceful shutdown - MODIFIED to preserve session folders unless explicit logout
+function gracefulShutdown() {
+  if (isShuttingDown) {
+    console.log("🛑 Shutdown already in progress...");
+    return;
+  }
+  
+  isShuttingDown = true;
+  console.log("\n🛑 Shutting down TRACLE LITE server gracefully...");
+  console.log("💾 PRESERVING ALL SESSION FOLDERS (graceful shutdown)");
+  
+  // Save persistent data before shutting down
+  savePersistentData();
+  console.log(`💾 Saved persistent data: ${totalUsers} total users`);
+  
+  let connectionCount = 0;
+  activeConnections.forEach((data, sessionId) => {
+    try {
+      data.conn.ws.close();
+      console.log(`🔒 Closed WhatsApp connection for session: ${sessionId}`);
+      connectionCount++;
+      
+      // PRESERVE the session folder during graceful shutdown
+      const sessionDir = path.join(__dirname, "sessions", sessionId);
+      if (fs.existsSync(sessionDir)) {
+          console.log(`💾 Preserved session folder for: ${sessionId}`);
+      }
     } catch (error) {
       console.error(`❌ Error closing connection for ${sessionId}:`, error.message);
     }
