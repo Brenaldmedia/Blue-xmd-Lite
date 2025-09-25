@@ -1217,6 +1217,7 @@ async function reloadExistingSessions() {
     broadcastStats(); // Update stats after reloading all sessions
 }
 
+
 // Graceful shutdown - PRESERVES session folders
 function gracefulShutdown() {
   if (isShuttingDown) {
@@ -1266,6 +1267,16 @@ function gracefulShutdown() {
     process.exit(0);
   });
 }
+// Start the server
+server.listen(port, async () => {
+    console.log(`🚀 ${BOT_NAME} server running on http://localhost:${port}`);
+    console.log(`📱 WhatsApp bot initialized`);
+    console.log(`🔧 Loaded ${commands.size} commands`);
+    
+    // Reload existing sessions after server starts
+    await reloadExistingSessions();
+});
+
 
 // Graceful shutdown - MODIFIED to preserve session folders unless explicit logout
 function gracefulShutdown() {
@@ -1339,3 +1350,4 @@ process.on("unhandledRejection", (reason, promise) => {
 
 // Track if we're in shutdown state
 let isShuttingDown = false;
+
