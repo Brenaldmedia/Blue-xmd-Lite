@@ -17,8 +17,8 @@ module.exports = {
                     forwardingScore: 999,
                     isForwarded: true,
                     forwardedNewsletterMessageInfo: {
-                        newsletterJid: "120363401559573199@newsletter",
-                        newsletterName: "BrenaldMedia",
+                        newsletterJid: "120363404062045789@newsletter",
+                        newsletterName: "Blue-xmd - Lite",
                         serverMessageId: 200
                     }
                 }
@@ -51,7 +51,7 @@ module.exports = {
 💨 *Wind Speed*: ${data.wind.speed} m/s
 🔽 *Pressure*: ${data.main.pressure} hPa
 
-*© Powered By BrenaldMedia*
+*© Powered By Blue-xmd - Lite*
 `;
             return await sendMessageWithContext(weather);
         } catch (e) {

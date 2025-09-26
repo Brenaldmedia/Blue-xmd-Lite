@@ -13,8 +13,8 @@ const getContextInfo = (mentionedJids) => ({
   forwardingScore: 999,
   isForwarded: true,
   forwardedNewsletterMessageInfo: {
-    newsletterJid: '120363401559573199@newsletter',
-    newsletterName: "TRACLE - LITE",
+    newsletterJid: '120363404062045789@newsletter',
+    newsletterName: "Blue-xmd - LITE",
     serverMessageId: 200,
   },
 });
@@ -53,7 +53,7 @@ module.exports = async (conn, update) => {
 │ 📝 Group Description:
 │ ${desc}
 │ 
-╰❖ Powered by *TRACLE - LITE* ❖─
+╰❖ Powered by *Blue-xmd - LITE* ❖─
         `.trim();
 
         await conn.sendMessage(id, {
@@ -72,7 +72,7 @@ module.exports = async (conn, update) => {
 │ 🏠 You left: *${groupName}*
 │ 🕒 Time: *${timestamp}*
 │ 
-╰❖ Powered by *TRACLE - LITE* ❖─
+╰❖ Powered by *Blue-xmd - LITE* ❖─
         `.trim();
 
         await conn.sendMessage(id, {

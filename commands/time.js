@@ -83,8 +83,8 @@ module.exports = {
           forwardingScore: 999,
           isForwarded: true,
           forwardedNewsletterMessageInfo: {
-            newsletterJid: "120363401559573199@newsletter",
-            newsletterName: "BrenaldMedia",
+            newsletterJid: "120363404062045789@newsletter",
+            newsletterName: "Blue-xmd - Lite",
             serverMessageId: 200
           }
         }
@@ -128,17 +128,17 @@ module.exports = {
         if (!tzName && locationRaw.includes("/")) tzName = locationRaw;
 
         if (!tzName) {
-          return await sendMessageWithContext(`❌ Couldn't determine timezone for "${locationRaw}".\n\nTry a city like "paris" or a timezone like "Europe/Paris".\n\n> ⚡ Powered by TRACLE - LITE`);
+          return await sendMessageWithContext(`❌ Couldn't determine timezone for "${locationRaw}".\n\nTry a city like "paris" or a timezone like "Europe/Paris".\n\n> ⚡ Powered by BLUE-XMD - LITE`);
         }
 
         const { timeStr, dateStr, tzShort } = formatForTimezone(tzName);
-        const result = `🕒 *Current time in ${tzName}:*\n\n⏰ *Time:* ${timeStr}\n📅 *Date:* ${dateStr}\n🌍 *Timezone:* ${tzShort}\n\n> ⚡ Powered by TRACLE - LITE `;
+        const result = `🕒 *Current time in ${tzName}:*\n\n⏰ *Time:* ${timeStr}\n📅 *Date:* ${dateStr}\n🌍 *Timezone:* ${tzShort}\n\n> ⚡ Powered by BLUE-XMD - LITE `;
 
         await sendMessageWithContext(result);
 
       } catch (err) {
         console.error("Time command error:", err);
-        await sendMessageWithContext(`❌ Failed to fetch time for "${locationRaw}".\n\nTry a valid city or timezone.\n\n> ⚡ Powered by TRACLE - LITE`);
+        await sendMessageWithContext(`❌ Failed to fetch time for "${locationRaw}".\n\nTry a valid city or timezone.\n\n> ⚡ Powered by BLUE-XMD - LITE`);
       }
     } catch (error) {
       console.error("Time command execution error:", error);

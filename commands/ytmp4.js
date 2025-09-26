@@ -16,8 +16,8 @@ module.exports = {
           forwardingScore: 999,
           isForwarded: true,
           forwardedNewsletterMessageInfo: {
-            newsletterJid: "120363401559573199@newsletter",
-            newsletterName: "BrenaldMedia",
+            newsletterJid: "120363404062045789@newsletter",
+            newsletterName: "Blue-xmd - Lite",
             serverMessageId: 200
           }
         }
@@ -48,7 +48,7 @@ module.exports = {
                       `📖 *Title:* ${title || "Unknown"}\n` +
                       `🎚️ *Quality:* ${quality || "Unknown"}\n` +
                       `⏱️ *Duration:* ${duration ? duration + "s" : "Unknown"}\n\n` +
-                      `> Powered By BrenaldMedia`;
+                      `> Powered By Blue-xmd - Lite`;
 
       // Prepare thumbnail buffer if exists
       let thumbBuffer;
@@ -68,8 +68,8 @@ module.exports = {
           forwardingScore: 999,
           isForwarded: true,
           forwardedNewsletterMessageInfo: {
-            newsletterJid: "120363401559573199@newsletter",
-            newsletterName: "BrenaldMedia",
+            newsletterJid: "120363404062045789@newsletter",
+            newsletterName: "Blue-xmd - Lite",
             serverMessageId: 200
           }
         }

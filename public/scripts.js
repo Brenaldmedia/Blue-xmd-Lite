@@ -5,54 +5,84 @@ document.addEventListener("DOMContentLoaded", () => {
   const phoneInput = document.getElementById("phone");
   const requestPairingBtn = document.getElementById("requestPairing");
   const statusEl = document.getElementById("status");
-  const welcomeModal = document.getElementById("welcomeModal");
-  const modalClose = document.getElementById("modalClose");
-  const navToggle = document.getElementById("navToggle");
-  const navLinks = document.querySelector('.nav-links');
-  const nav = document.getElementById('nav');
+  const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+  const sidebar = document.querySelector('.sidebar');
 
-  // Initialize animations
+  // Initialize everything
+  initBinaryBackground();
   initAnimations();
+  createParticles();
+  setupEventListeners();
 
-  // Check if modal has been shown before using sessionStorage
-  const modalShown = sessionStorage.getItem('welcomeModalShown');
+  // Set current year in footer
+  document.getElementById('year').textContent = new Date().getFullYear();
 
-  // Close modal functions
-  function closeModal() {
-    welcomeModal.classList.remove('active');
-    setTimeout(() => {
-      welcomeModal.style.display = 'none';
-    }, 400);
-  }
-  
-  modalClose.addEventListener('click', closeModal);
+  function setupEventListeners() {
+    // Pairing functionality
+    requestPairingBtn.addEventListener("click", handlePairingRequest);
 
-  // Close modal when clicking on fork and star buttons
-  document.querySelectorAll('.github-buttons a').forEach(button => {
-    button.addEventListener('click', closeModal);
-  });
-
-  // Close modal when clicking outside
-  welcomeModal.addEventListener('click', (e) => {
-    if (e.target === welcomeModal) {
-      closeModal();
+    // Mobile menu toggle
+    if (mobileMenuToggle) {
+      mobileMenuToggle.addEventListener('click', toggleMobileMenu);
     }
-  });
 
-  // Show modal only when requesting pairing code (if not shown before)
-  requestPairingBtn.addEventListener("click", async () => {
-    // Show modal only if it hasn't been shown before in this session
-    if (!modalShown) {
-      welcomeModal.style.display = 'flex';
-      setTimeout(() => {
-        welcomeModal.classList.add('active');
-      }, 50);
+    // Close sidebar when clicking on links (mobile)
+    document.querySelectorAll('.sidebar-nav a').forEach(link => {
+      link.addEventListener('click', () => {
+        if (window.innerWidth <= 768) {
+          closeMobileMenu();
+        }
+      });
+    });
+
+    // Close sidebar when clicking outside (mobile)
+    document.addEventListener('click', (e) => {
+      if (window.innerWidth <= 768 && sidebar.classList.contains('active')) {
+        if (!sidebar.contains(e.target) && !mobileMenuToggle.contains(e.target)) {
+          closeMobileMenu();
+        }
+      }
+    });
+
+    // Handle Enter key in phone input
+    phoneInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        requestPairingBtn.click();
+      }
+    });
+
+    // Input validation for phone number
+    phoneInput.addEventListener("input", function(e) {
+      this.value = this.value.replace(/\D/g, '');
+    });
+
+    // Smooth scrolling for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }
+      });
+    });
+
+    // Add hover effect to buttons
+    document.querySelectorAll('.btn').forEach(button => {
+      button.addEventListener('mouseenter', function() {
+        this.style.transform = 'translateY(-2px) scale(1.02)';
+      });
       
-      // Mark as shown in sessionStorage
-      sessionStorage.setItem('welcomeModalShown', 'true');
-    }
+      button.addEventListener('mouseleave', function() {
+        this.style.transform = 'translateY(0) scale(1)';
+      });
+    });
+  }
 
-    // Rest of your existing pairing code logic...
+  async function handlePairingRequest() {
     const number = phoneInput.value.trim();
     if (!number) {
       showStatus("❌ Please enter your phone number (with country code).", "error");
@@ -80,8 +110,6 @@ document.addEventListener("DOMContentLoaded", () => {
       
       if (!res.ok) {
         showStatus("❌ Error: " + (data.error || "Failed to request pairing"), "error");
-        requestPairingBtn.disabled = false;
-        requestPairingBtn.classList.remove("loading");
         return;
       }
 
@@ -96,30 +124,7 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
       `, "success");
 
-      // Add copy functionality with enhanced animation
-      const pairingEl = document.getElementById("pairingCode");
-      if (pairingEl) {
-        pairingEl.addEventListener("click", () => {
-          navigator.clipboard.writeText(code)
-            .then(() => {
-              const originalText = pairingEl.textContent;
-              pairingEl.textContent = "Copied!";
-              pairingEl.style.letterSpacing = "2px";
-              pairingEl.style.background = "rgba(0, 255, 102, 0.3)";
-              pairingEl.style.boxShadow = "0 0 30px rgba(0, 255, 102, 0.5)";
-              
-              setTimeout(() => {
-                pairingEl.textContent = originalText;
-                pairingEl.style.letterSpacing = "10px";
-                pairingEl.style.background = "rgba(0, 0, 0, 0.4)";
-                pairingEl.style.boxShadow = "0 5px 15px rgba(0, 0, 0, 0.2)";
-              }, 2000);
-            })
-            .catch(() => {
-              showStatus("❌ Failed to copy to clipboard. Please manually copy the code.", "error");
-            });
-        });
-      }
+      setupCopyFunctionality(code);
     } catch (err) {
       console.error("Pairing request failed", err);
       showStatus("❌ Failed to request pairing code (network or server error).", "error");
@@ -127,96 +132,110 @@ document.addEventListener("DOMContentLoaded", () => {
       requestPairingBtn.disabled = false;
       requestPairingBtn.classList.remove("loading");
     }
-  });
+  }
 
-  // Mobile navigation toggle
-  navToggle.addEventListener('click', () => {
-    navLinks.classList.toggle('active');
-    navToggle.innerHTML = navLinks.classList.contains('active') ?
-      '<i class="fas fa-times"></i>' : '<i class="fas fa-bars"></i>';
-  });
+  function setupCopyFunctionality(code) {
+    const pairingEl = document.getElementById("pairingCode");
+    if (pairingEl) {
+      pairingEl.addEventListener("click", () => {
+        navigator.clipboard.writeText(code)
+          .then(() => {
+            const originalText = pairingEl.textContent;
+            pairingEl.textContent = "Copied!";
+            pairingEl.style.letterSpacing = "2px";
+            pairingEl.style.background = "rgba(65, 105, 225, 0.3)";
+            pairingEl.style.boxShadow = "0 0 30px rgba(65, 105, 225, 0.5)";
+            
+            setTimeout(() => {
+              pairingEl.textContent = originalText;
+              pairingEl.style.letterSpacing = "8px";
+              pairingEl.style.background = "rgba(0, 0, 0, 0.4)";
+              pairingEl.style.boxShadow = "0 5px 15px rgba(0, 0, 0, 0.2)";
+            }, 2000);
+          })
+          .catch(() => {
+            showStatus("❌ Failed to copy to clipboard. Please manually copy the code.", "error");
+          });
+      });
+    }
+  }
 
-  // Close mobile menu when clicking on links
-  document.querySelectorAll('.nav-links a').forEach(link => {
-    link.addEventListener('click', () => {
-      navLinks.classList.remove('active');
-      navToggle.innerHTML = '<i class="fas fa-bars"></i>';
-    });
-  });
+  function toggleMobileMenu() {
+    sidebar.classList.toggle('active');
+    mobileMenuToggle.innerHTML = sidebar.classList.contains('active') 
+      ? '<i class="fas fa-times"></i>' 
+      : '<i class="fas fa-bars"></i>';
+  }
 
-  // ✅ Listen for stats updates from server
+  function closeMobileMenu() {
+    sidebar.classList.remove('active');
+    mobileMenuToggle.innerHTML = '<i class="fas fa-bars"></i>';
+  }
+
+  // Socket events
   socket.on("statsUpdate", ({ activeSockets, totalUsers }) => {
     animateCounter("activeSockets", activeSockets);
     animateCounter("totalUsers", totalUsers);
   });
 
-  // Navbar scroll effect
-  window.addEventListener('scroll', () => {
-    if (window.scrollY > 50) {
-      nav.classList.add('nav-scrolled');
-    } else {
-      nav.classList.remove('nav-scrolled');
-    }
-  });
-
-  // Show status message with enhanced animation
-  function showStatus(message, type = "") {
-    statusEl.innerHTML = message;
-    statusEl.className = "";
-    if (type) statusEl.classList.add(type);
-    
-    // Reset animation
-    statusEl.classList.remove("visible");
-    void statusEl.offsetWidth; // Trigger reflow
-    statusEl.classList.add("visible");
-  }
-
-  // Socket: Linked event
   socket.on("linked", ({ sessionId }) => {
     showStatus(`
-      <div style="text-align: center; color: var(--success);">
-        <i class="fas fa-check-circle" style="font-size: 3rem; margin-bottom: 20px; animation: bounce 2s infinite;"></i>
-        <h3 style="margin-bottom: 16px;">✅ Successfully Linked!</h3>
-        <p>Your device has been successfully connected. You can now use Tracle-Lite features.</p>
+      <div style="text-align: center;">
+        <i class="fas fa-check-circle" style="font-size: 3rem; margin-bottom: 20px; animation: bounce 2s infinite; color: var(--success);"></i>
+        <h3 style="margin-bottom: 16px; color: var(--success);">✅ Successfully Linked!</h3>
+        <p>Your device has been successfully connected. You can now use Blue-xmd-Lite features.</p>
         <p style="margin-top: 12px; opacity: 0.8;"><small>Session ID: ${sessionId}</small></p>
       </div>
     `, "success");
     
-    // Reset the form after successful pairing
     phoneInput.value = "";
-    
-    // Add confetti effect
     createConfetti();
   });
 
-  // Socket: pairing timeout
   socket.on("pairingTimeout", ({ number }) => {
     showStatus(`
-      <div style="text-align: center; color: var(--warning);">
-        <i class="fas fa-clock" style="font-size: 2.5rem; margin-bottom: 16px;"></i>
-        <h3 style="margin-bottom: 12px;">⏰ Pairing Code Expired</h3>
+      <div style="text-align: center;">
+        <i class="fas fa-clock" style="font-size: 2.5rem; margin-bottom: 16px; color: var(--warning);"></i>
+        <h3 style="margin-bottom: 12px; color: var(--warning);">⏰ Pairing Code Expired</h3>
         <p>Pairing code for ${number} has expired.</p>
         <p>Please request a new code if you still need to connect.</p>
       </div>
     `, "warning");
   });
 
-  // Handle Enter key in phone input
-  phoneInput.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
-      requestPairingBtn.click();
+  function showStatus(message, type = "") {
+    statusEl.innerHTML = message;
+    statusEl.className = "status-message";
+    if (type) statusEl.classList.add(`status-${type}`);
+    
+    // Reset animation
+    statusEl.style.animation = 'none';
+    setTimeout(() => {
+      statusEl.style.animation = 'fadeIn 0.5s ease forwards';
+    }, 10);
+  }
+
+  function initBinaryBackground() {
+    const binaryContainer = document.querySelector('.binary-background');
+    const binaryChars = ['0', '1'];
+    
+    for (let i = 0; i < 50; i++) {
+      const binary = document.createElement('div');
+      binary.className = 'binary-code';
+      
+      let binaryString = '';
+      for (let j = 0; j < 100; j++) {
+        binaryString += binaryChars[Math.floor(Math.random() * binaryChars.length)];
+      }
+      
+      binary.textContent = binaryString;
+      binary.style.left = Math.random() * 100 + '%';
+      binary.style.animationDelay = Math.random() * 20 + 's';
+      
+      binaryContainer.appendChild(binary);
     }
-  });
+  }
 
-  // Input validation for phone number
-  phoneInput.addEventListener("input", function(e) {
-    this.value = this.value.replace(/\D/g, '');
-  });
-
-  // Set current year in footer
-  document.getElementById('year').textContent = new Date().getFullYear();
-
-  // Create particle effect
   function createParticles() {
     const particlesContainer = document.getElementById('particles');
     const particleCount = window.innerWidth < 768 ? 25 : 50;
@@ -225,7 +244,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const particle = document.createElement('div');
       particle.classList.add('particle');
       
-      // Random properties
       const size = Math.random() * 4 + 1;
       const posX = Math.random() * 100;
       const delay = Math.random() * 20;
@@ -240,26 +258,8 @@ document.addEventListener("DOMContentLoaded", () => {
       particlesContainer.appendChild(particle);
     }
   }
-  
-  createParticles();
 
-  // Smooth scrolling for anchor links
-  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-    anchor.addEventListener('click', function (e) {
-      e.preventDefault();
-      const target = document.querySelector(this.getAttribute('href'));
-      if (target) {
-        target.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start'
-        });
-      }
-    });
-  });
-
-  // Initialize animations
   function initAnimations() {
-    // Intersection Observer for scroll animations
     const observerOptions = {
       threshold: 0.1,
       rootMargin: '0px 0px -50px 0px'
@@ -273,13 +273,11 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }, observerOptions);
 
-    // Observe cards for scroll animations
-    document.querySelectorAll('.card, .feature-item, .stat-card').forEach(element => {
+    document.querySelectorAll('.card, .feature-item, .stat-item').forEach(element => {
       observer.observe(element);
     });
 
-    // Add initial animation to header
-    const header = document.querySelector('header');
+    const header = document.querySelector('.hero-section');
     header.style.opacity = '0';
     header.style.transform = 'translateY(20px)';
     
@@ -290,14 +288,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 300);
   }
 
-  // Animate counter values
   function animateCounter(elementId, targetValue) {
     const element = document.getElementById(elementId);
     if (!element) return;
     
     const currentValue = parseInt(element.textContent) || 0;
-    const duration = 1000; // 1 second
-    const step = (targetValue - currentValue) / (duration / 16); // 60fps
+    const duration = 1000;
+    const step = (targetValue - currentValue) / (duration / 16);
     
     let current = currentValue;
     const timer = setInterval(() => {
@@ -310,39 +307,35 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 16);
   }
 
-  // Create confetti effect for successful pairing
   function createConfetti() {
     const confettiContainer = document.createElement('div');
-    confettiContainer.style.position = 'fixed';
-    confettiContainer.style.top = '0';
-    confettiContainer.style.left = '0';
-    confettiContainer.style.width = '100%';
-    confettiContainer.style.height = '100%';
-    confettiContainer.style.pointerEvents = 'none';
-    confettiContainer.style.zIndex = '9999';
+    confettiContainer.style.cssText = `
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+      pointer-events: none; z-index: 9999;
+    `;
     document.body.appendChild(confettiContainer);
 
-    const colors = ['#00ff88', '#00cc66', '#66ff33', '#33cc33', '#9eff9e'];
-    const confettiCount = 100;
+    const colors = ['#4169e1', '#1e40af', '#3b82f6', '#2563eb', '#93c5fd'];
 
-    for (let i = 0; i < confettiCount; i++) {
+    for (let i = 0; i < 100; i++) {
       const confetti = document.createElement('div');
-      confetti.style.position = 'absolute';
-      confetti.style.width = Math.random() * 10 + 5 + 'px';
-      confetti.style.height = Math.random() * 10 + 5 + 'px';
-      confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-      confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
-      confetti.style.left = Math.random() * 100 + 'vw';
-      confetti.style.top = '-10px';
-      confetti.style.opacity = Math.random() * 0.5 + 0.5;
+      confetti.style.cssText = `
+        position: absolute;
+        width: ${Math.random() * 10 + 5}px;
+        height: ${Math.random() * 10 + 5}px;
+        background-color: ${colors[Math.floor(Math.random() * colors.length)]};
+        border-radius: ${Math.random() > 0.5 ? '50%' : '0'};
+        left: ${Math.random() * 100}vw;
+        top: -10px;
+        opacity: ${Math.random() * 0.5 + 0.5};
+      `;
       confettiContainer.appendChild(confetti);
 
-      // Animate confetti
       const animation = confetti.animate([
         { transform: 'translateY(0) rotate(0deg)', opacity: 1 },
         { transform: `translateY(100vh) rotate(${Math.random() * 360}deg)`, opacity: 0 }
       ], {
-        duration : Math.random() * 3000 + 2000,
+        duration: Math.random() * 3000 + 2000,
         easing: 'cubic-bezier(0.1, 0.8, 0.2, 1)'
       });
 
@@ -355,61 +348,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Add hover effect to buttons
-  document.querySelectorAll('.btn').forEach(button => {
-    button.addEventListener('mouseenter', function() {
-      this.style.transform = 'translateY(-3px) scale(1.02)';
-    });
-    
-    button.addEventListener('mouseleave', function() {
-      this.style.transform = 'translateY(0) scale(1)';
-    });
-  });
-
-  // Add ripple effect to buttons
-  document.querySelectorAll('.btn').forEach(button => {
-    button.addEventListener('click', function(e) {
-      const ripple = document.createElement('span');
-      const rect = this.getBoundingClientRect();
-      const size = Math.max(rect.width, rect.height);
-      const x = e.clientX - rect.left - size / 2;
-      const y = e.clientY - rect.top - size / 2;
-      
-      ripple.style.width = ripple.style.height = size + 'px';
-      ripple.style.left = x + 'px';
-      ripple.style.top = y + 'px';
-      ripple.classList.add('ripple');
-      
-      this.appendChild(ripple);
-      
-      setTimeout(() => {
-        ripple.remove();
-      }, 600);
-    });
-  });
-
-  // Add CSS for ripple effect
-  const rippleStyle = document.createElement('style');
-  rippleStyle.textContent = `
-    .btn {
-      position: relative;
-      overflow: hidden;
+  // Add CSS for animations
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     
-    .ripple {
-      position: absolute;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.6);
-      transform: scale(0);
-      animation: ripple-animation 0.6s linear;
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
     }
     
-    @keyframes ripple-animation {
-      to {
-        transform: scale(4);
-        opacity: 0;
-      }
-    }
+    .btn { position: relative; overflow: hidden; transition: all 0.3s ease; }
+    .loading { opacity: 0.7; pointer-events: none; }
   `;
-  document.head.appendChild(rippleStyle);
+  document.head.appendChild(style);
 });

@@ -17,8 +17,8 @@ module.exports = {
                     forwardingScore: 999,
                     isForwarded: true,
                     forwardedNewsletterMessageInfo: {
-                        newsletterJid: "120363401559573199@newsletter",
-                        newsletterName: "BrenaldMedia",
+                        newsletterJid: "120363404062045789@newsletter",
+                        newsletterName: "Blue-xmd - Lite",
                         serverMessageId: 200
                     }
                 }
@@ -27,7 +27,7 @@ module.exports = {
 
         try {
             if (!q) {
-                return await sendMessageWithContext("❎ Please provide a TikTok username.\n\n*Example:* .ttstalk Brenaldmedia");
+                return await sendMessageWithContext("❎ Please provide a TikTok username.\n\n*Example:* .ttstalk emeralds.levels");
             }
 
             // React 📱
@@ -59,7 +59,7 @@ module.exports = {
 ┃ 🆔 *ID*: ${user.id || "N/A"}
 ┃ 🔗 *Profile*: https://www.tiktok.com/@${user.username}
 ╰━━━━━━━━━━━━━━━━━━┈⊷
-> © Powered by TRACLE - LITE `;
+> © Powered by BLUE-XMD - LITE `;
 
             if (user.avatar) {
                 await conn.sendMessage(from, {
@@ -69,8 +69,8 @@ module.exports = {
                         forwardingScore: 999,
                         isForwarded: true,
                         forwardedNewsletterMessageInfo: {
-                            newsletterJid: "120363401559573199@newsletter",
-                            newsletterName: "BrenaldMedia",
+                            newsletterJid: "120363404062045789@newsletter",
+                            newsletterName: "Blue-xmd - Lite",
                             serverMessageId: 200
                         }
                     }

@@ -45,8 +45,8 @@ function getRuntimeCommand() {
               forwardingScore: 999,
               isForwarded: true,
               forwardedNewsletterMessageInfo: {
-                newsletterJid: "120363401559573199@newsletter",
-                newsletterName: "BrenaldMedia",
+                newsletterJid: "120363404062045789@newsletter",
+                newsletterName: "Blue-xmd - Lite",
                 serverMessageId: 147
               }
             }
@@ -59,15 +59,15 @@ function getRuntimeCommand() {
               forwardingScore: 999,
               isForwarded: true,
               forwardedNewsletterMessageInfo: {
-                newsletterJid: "120363401559573199@newsletter",
-                newsletterName: "BrenaldMedia",
+                newsletterJid: "120363404062045789@newsletter",
+                newsletterName: "Blue-xmd - Lite ",
                 serverMessageId: 147
               },
               externalAdReply: {
-                title: "TRACLE - LITE RUNTIME",
-                body: "Tracle - Lite runtime information ",
-                thumbnailUrl: "https://files.catbox.moe/m3o9wj.jpg",
-                sourceUrl: "https://github.com/Brenaldmedia/Tracle",
+                title: "Blue-xmd - LITE RUNTIME",
+                body: "Blue-xmd - Lite runtime information ",
+                thumbnailUrl: "https://files.catbox.moe/lthtjq.jpeg",
+                sourceUrl: "https://github.com/emeraldlevels/BLUE-XMD",
                 mediaType: 1,
                 renderLargerThumbnail: true
               }
@@ -93,8 +93,8 @@ function getRuntimeCommand() {
               forwardingScore: 999,
               isForwarded: true,
               forwardedNewsletterMessageInfo: {
-                newsletterJid: "120363401559573199@newsletter",
-                newsletterName: "BrenaldMedia",
+                newsletterJid: "120363404062045789@newsletter",
+                newsletterName: "Blue-xmd - Lite",
                 serverMessageId: 148
               }
             }
@@ -107,15 +107,15 @@ function getRuntimeCommand() {
               forwardingScore: 999,
               isForwarded: true,
               forwardedNewsletterMessageInfo: {
-                newsletterJid: "120363401559573199@newsletter",
-                newsletterName: "BrenaldMedia",
+                newsletterJid: "120363404062045789@newsletter",
+                newsletterName: "Blue-xmd - Lite",
                 serverMessageId: 148
               },
               externalAdReply: {
                 title: "❌ Error",
                 body: "Failed to fetch runtime information",
-                thumbnailUrl: "https://files.catbox.moe/m3o9wj.jpg",
-                sourceUrl: "https://github.com/Brenaldmedia/Tracle",
+                thumbnailUrl: "https://files.catbox.moe/lthtjq.jpeg",
+                sourceUrl: "https://github.com/emeraldlevels/BLUE-XMD",
                 mediaType: 1,
                 renderLargerThumbnail: true
               }

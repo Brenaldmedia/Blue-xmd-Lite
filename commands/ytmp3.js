@@ -16,8 +16,8 @@ module.exports = {
                     forwardingScore: 999,
                     isForwarded: true,
                     forwardedNewsletterMessageInfo: {
-                        newsletterJid: "120363401559573199@newsletter",
-                        newsletterName: "BrenaldMedia",
+                        newsletterJid: "120363404062045789@newsletter",
+                        newsletterName: "Blue-xmd - Lite",
                         serverMessageId: 200
                     }
                 }
@@ -143,7 +143,7 @@ module.exports = {
                             `👤 *Artist/Channel:* ${channel || "Unknown"}\n` +
                             `⏱️ *Duration:* ${duration || "Unknown"}\n` +
                             `🌐 *Source:* ${apiUsed || "API"}\n\n` +
-                            `> Powered By BrenaldMedia`;
+                            `> Powered By Blue-xmd - LITE `;
 
             let thumbBuffer;
             if (thumbnail) {
@@ -165,8 +165,8 @@ module.exports = {
                     forwardingScore: 999,
                     isForwarded: true,
                     forwardedNewsletterMessageInfo: {
-                        newsletterJid: "120363401559573199@newsletter",
-                        newsletterName: "BrenaldMedia",
+                        newsletterJid: "120363404062045789@newsletter",
+                        newsletterName: "Blue-xmd - Lite",
                         serverMessageId: 200
                     }
                 }

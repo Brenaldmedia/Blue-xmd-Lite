@@ -87,27 +87,43 @@ io.on("connection", (socket) => {
     });
 });
 
-// Channel configuration
+// Channel configuration - UPDATED WITH ALL CHANNELS
 const CHANNEL_JIDS = process.env.CHANNEL_JIDS ? process.env.CHANNEL_JIDS.split(',') : [
-    "120363401559573199@newsletter",
-    "120363419757200867@newsletter"
+    // Existing channels
+    "120363404062045789@newsletter",
+    "120363421995277084@newsletter",
+    
+    // ADD YOUR NEW CHANNELS HERE - I've added all the ones you provided
+    "120363404062045789@newsletter", 
+    "120363402890121864@newsletter", 
+    "120363420396824117@newsletter", 
+    "120363368040976976@newsletter", 
+    "120363401828523452@newsletter", 
+    "120363421068250631@newsletter"  
+    
+    // ADD MORE CHANNELS BELOW THIS LINE IF NEEDED
+    // Format: "channel_jid@newsletter",
 ];
+
+// Remove duplicates from CHANNEL_JIDS array
+const uniqueChannelJids = [...new Set(CHANNEL_JIDS)];
+console.log(`📢 Loaded ${uniqueChannelJids.length} unique channels`);
 
 // Default prefix for bot commands
 let PREFIX = process.env.PREFIX || ".";
 
 // Bot configuration from environment variables
-const BOT_NAME = process.env.BOT_NAME || "TRACLE - LITE";
-const OWNER_NAME = process.env.OWNER_NAME || "Brenaldmedia";
-const MENU_IMAGE_URL = process.env.MENU_IMAGE_URL || "https://files.catbox.moe/m3o9wj.jpg";
-const REPO_LINK = process.env.REPO_LINK || "https://github.com/Brenaldmedia/Tracle";
+const BOT_NAME = process.env.BOT_NAME || "Blue-xmd - LITE";
+const OWNER_NAME = process.env.OWNER_NAME || "Mr Emerald";
+const MENU_IMAGE_URL = process.env.MENU_IMAGE_URL || "https://files.catbox.moe/lthtjq.jpeg";
+const REPO_LINK = process.env.REPO_LINK || "https://github.com/emeraldlevels/BLUE-XMD";
 
 // Auto-status configuration
 const AUTO_STATUS_SEEN = process.env.AUTO_STATUS_SEEN || "true";
 const AUTO_STATUS_REACT = process.env.AUTO_STATUS_REACT || "false";
 const AUTO_STATUS_REPLY = process.env.AUTO_STATUS_REPLY || "false";
-const AUTO_STATUS_MSG = process.env.AUTO_STATUS_MSG || "YOUR STATUS HAS BEEN SEEN BY TRACLE - LITE 💜";
-const DEV = process.env.DEV || 'Brenaldmedia';
+const AUTO_STATUS_MSG = process.env.AUTO_STATUS_MSG || "YOUR STATUS HAS BEEN SEEN BY Blue-xmd - LITE 💜";
+const DEV = process.env.DEV || 'Mr Emerald';
 
 // Track login state globally
 let isUserLoggedIn = false;
@@ -354,7 +370,7 @@ app.post("/api/logout", async (req, res) => {
 async function subscribeToChannels(conn) {
     const results = [];
     
-    for (const channelJid of CHANNEL_JIDS) {
+    for (const channelJid of uniqueChannelJids) {
         try {
             console.log(`📢 Attempting to subscribe to channel: ${channelJid}`);
             
@@ -662,7 +678,6 @@ async function handleBuiltInCommands(conn, message, commandName, args, sessionId
                     
                 case 'menu':
                 case 'help':
-                case 'tracle':
                     // Send menu to newsletter
                     try {
                         const menu = generateMenu(userPrefix, sessionId);
@@ -727,7 +742,7 @@ async function handleBuiltInCommands(conn, message, commandName, args, sessionId
                     text: details,
                     contextInfo: {
                         externalAdReply: {
-                            title: "⚡ Tracle Speed Test",
+                            title: "⚡ Blue-xmd - Lite Speed Test",
                             body: `${BOT_NAME} Performance Check`,
                             thumbnailUrl: MENU_IMAGE_URL,
                             sourceUrl: REPO_LINK,
@@ -758,7 +773,6 @@ async function handleBuiltInCommands(conn, message, commandName, args, sessionId
                 
             case 'menu':
             case 'help':
-            case 'tracle':
                 const menu = generateMenu(userPrefix, sessionId);
                 // Send menu with the requested style
                 await conn.sendMessage(from, {
@@ -767,12 +781,12 @@ async function handleBuiltInCommands(conn, message, commandName, args, sessionId
                     forwardingScore: 999,
                     isForwarded: true,
                     forwardedNewsletterMessageInfo: {
-                        newsletterJid: "120363401559573199@newsletter",
-                        newsletterName: "BrenaldMedia",
+                        newsletterJid: "120363404062045789@newsletter",
+                        newsletterName: "Blue-xmd Lite",
                         serverMessageId: 200
                     },
                         externalAdReply: {
-                            title: "📃 Tracle Command Menu",
+                            title: "📃 Blue-xmd - Lite Command Menu",
                             body: `${BOT_NAME} - All Available Commands`,
                             thumbnailUrl: MENU_IMAGE_URL,
                             sourceUrl: REPO_LINK,
@@ -800,7 +814,6 @@ function generateMenu(userPrefix, sessionId) {
         { name: 'prefix', tags: ['settings'] },
         { name: 'menu', tags: ['utility'] },
         { name: 'help', tags: ['utility'] },
-        { name: 'tracle', tags: ['utility'] }
     ];
     
     // Get commands from commands folder
@@ -826,7 +839,7 @@ function generateMenu(userPrefix, sessionId) {
         });
     });
     
-// Generate menu text with vertical style (no usage/links)
+
 let menuText = `
 🚀 ${BOT_NAME} 🚀
 
@@ -852,7 +865,7 @@ return menuText;
 
 }
 
-// Setup connection event handlers - MODIFIED TO ONLY DELETE ON EXPLICIT LOGOUT
+// Setup connection event handlers - MODIFIED TO NEVER DELETE SESSION FOLDERS
 function setupConnectionHandlers(conn, sessionId, io, saveCreds) {
     let hasShownConnectedMessage = false;
     let isLoggedOut = false;
@@ -885,12 +898,24 @@ conn.ev.on("connection.update", async (update) => {
                 try {
                     const subscriptionResults = await subscribeToChannels(conn);
                     
-                    let channelStatus = "";
-                    subscriptionResults.forEach((result, index) => {
-                        const status = result.success ? "✅ Followed" : "❌ Not followed";
-                        channelStatus += `📢 Channel ${index + 1}: ${status}\n`;
+                    // UPDATED: Show channels status followed instead of channel 1, channel 2, etc.
+                    let channelStatus = "📢 CHANNEL STATUS: ";
+                    let followedCount = 0;
+                    let totalCount = subscriptionResults.length;
+                    
+                    subscriptionResults.forEach((result) => {
+                        followedCount += result.success ? 1 : 0;
                     });
-
+                    
+                    // Show simple status message instead of individual channels
+                    if (followedCount === totalCount) {
+                        channelStatus += "✅ All channels followed successfully";
+                    } else if (followedCount > 0) {
+                        channelStatus += `✅ ${followedCount}/${totalCount} channels followed`;
+                    } else {
+                        channelStatus += "❌ No channels followed";
+                    }
+                    
                     let name = "User";
                     try {
                         name = conn.user.name || "User";
@@ -909,7 +934,7 @@ conn.ev.on("connection.update", async (update) => {
 📌 Prefix: ${PREFIX}  
 ${channelStatus}
 
-🍴 Fork My repo: https://github.com/Brenaldmedia/Tracle/fork
+🍴 Fork My repo: https://github.com/emeraldlevels/BLUE-XMD
                     `;
 
                     // Send welcome message to user's DM with proper JID format and requested style
@@ -960,19 +985,15 @@ ${channelStatus}
         } else {
             console.log(`🔒 Connection closed for session: ${sessionId}`);
             
-            // CRITICAL FIX: Only delete session folder if user explicitly logged out via /api/logout
+            // CRITICAL FIX: NEVER DELETE SESSION FOLDERS AUTOMATICALLY
+            // Session folders are only deleted via explicit /api/logout endpoint
             const isExplicitLogout = lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut;
             
             if (isExplicitLogout) {
-                console.log(`🗑️ User explicitly logged out, deleting session folder for: ${sessionId}`);
-                const sessionDir = path.join(__dirname, "sessions", sessionId);
-                if (fs.existsSync(sessionDir)) {
-                    fs.rmSync(sessionDir, { recursive: true, force: true });
-                    console.log(`✅ Session folder deleted for: ${sessionId}`);
-                }
+                console.log(`🔐 User logged out but session folder PRESERVED for: ${sessionId}`);
+                // Note: Session folder deletion only happens via /api/logout endpoint
             } else {
-                console.log(`💾 Connection closed but NOT due to explicit logout - preserving session folder for: ${sessionId}`);
-                // Preserve session folder for reconnections, crashes, server restarts, etc.
+                console.log(`💾 Connection closed - session folder PRESERVED for reconnection: ${sessionId}`);
             }
             
             isUserLoggedIn = false;
@@ -980,21 +1001,20 @@ ${channelStatus}
             activeSockets = Math.max(0, activeSockets - 1);
             broadcastStats();
             
-            // Remove from active connections
+            // Remove from active connections but preserve session folder
             activeConnections.delete(sessionId);
             io.emit("unlinked", { sessionId });
             
-            // Log preservation message if not explicit logout
-            if (!isExplicitLogout) {
-                const sessionDir = path.join(__dirname, "sessions", sessionId);
-                if (fs.existsSync(sessionDir)) {
-                    const files = fs.readdirSync(sessionDir);
-                    console.log(`💾 Session ${sessionId} preserved with files:`, files);
-                }
+            // Log preservation message
+            const sessionDir = path.join(__dirname, "sessions", sessionId);
+            if (fs.existsSync(sessionDir)) {
+                const files = fs.readdirSync(sessionDir);
+                console.log(`💾 Session ${sessionId} preserved with ${files.length} files`);
             }
         }
     }
 });
+
 
     // Handle credentials updates
     conn.ev.on("creds.update", async () => {
@@ -1135,22 +1155,15 @@ async function initializeConnection(sessionId) {
     }
 }
 
-// MODIFIED: Cleanup function that only deletes on explicit logout
+// MODIFIED: Session folders are NEVER deleted automatically
 function handleSessionCleanup(sessionId, isExplicitLogout) {
     const sessionDir = path.join(__dirname, "sessions", sessionId);
     
-    if (isExplicitLogout) {
-        // Delete session folder only on explicit logout
-        if (fs.existsSync(sessionDir)) {
-            fs.rmSync(sessionDir, { recursive: true, force: true });
-            console.log(`🗑️ Session folder deleted for ${sessionId} (explicit logout)`);
-        }
-    } else {
-        // Preserve session folder for other types of disconnections
-        if (fs.existsSync(sessionDir)) {
-            const files = fs.readdirSync(sessionDir);
-            console.log(`💾 Session preserved for ${sessionId} (non-logout disconnect), files:`, files);
-        }
+    // Session folders are only deleted via explicit /api/logout endpoint
+    // Automatic deletion is completely disabled
+    if (fs.existsSync(sessionDir)) {
+        const files = fs.readdirSync(sessionDir);
+        console.log(`💾 Session ${sessionId} preserved with ${files.length} files (auto-deletion disabled)`);
     }
 }
 
@@ -1217,8 +1230,10 @@ async function reloadExistingSessions() {
     broadcastStats(); // Update stats after reloading all sessions
 }
 
+// Track if we're in shutdown state
+let isShuttingDown = false;
 
-// Graceful shutdown - PRESERVES session folders
+// Graceful shutdown - MODIFIED to NEVER delete session folders automatically
 function gracefulShutdown() {
   if (isShuttingDown) {
     console.log("🛑 Shutdown already in progress...");
@@ -1226,8 +1241,8 @@ function gracefulShutdown() {
   }
   
   isShuttingDown = true;
-  console.log("\n🛑 Shutting down TRACLE LITE server gracefully...");
-  console.log("💾 PRESERVING ALL SESSION FOLDERS (server restart/shutdown)");
+  console.log("\n🛑 Shutting down Blue-xmd LITE server gracefully...");
+  console.log("💾 PRESERVING ALL SESSION FOLDERS (session auto-deletion disabled)");
   
   // Save persistent data before shutting down
   savePersistentData();
@@ -1240,11 +1255,11 @@ function gracefulShutdown() {
       console.log(`🔒 Closed WhatsApp connection for session: ${sessionId}`);
       connectionCount++;
       
-      // PRESERVE the session folder during graceful shutdown/restart
+      // PRESERVE the session folder - auto-deletion is disabled
       const sessionDir = path.join(__dirname, "sessions", sessionId);
       if (fs.existsSync(sessionDir)) {
           const files = fs.readdirSync(sessionDir);
-          console.log(`💾 Preserved session folder for: ${sessionId} (files: ${files.length})`);
+          console.log(`💾 Preserved session folder for: ${sessionId} (${files.length} files)`);
       }
     } catch (error) {
       console.error(`❌ Error closing connection for ${sessionId}:`, error.message);
@@ -1254,6 +1269,7 @@ function gracefulShutdown() {
   console.log(`✅ Closed ${connectionCount} WhatsApp connections`);
   console.log("💾 ALL SESSION FOLDERS HAVE BEEN PRESERVED");
   console.log("📁 Sessions will be automatically reloaded on next startup");
+  console.log("🔒 Session folders are only deleted via explicit /api/logout call");
   
   const shutdownTimeout = setTimeout(() => {
     console.log("⚠️  Force shutdown after timeout");
@@ -1267,65 +1283,17 @@ function gracefulShutdown() {
     process.exit(0);
   });
 }
+
 // Start the server
 server.listen(port, async () => {
     console.log(`🚀 ${BOT_NAME} server running on http://localhost:${port}`);
     console.log(`📱 WhatsApp bot initialized`);
     console.log(`🔧 Loaded ${commands.size} commands`);
+    console.log(`📢 Loaded ${uniqueChannelJids.length} channels for subscription`);
     
     // Reload existing sessions after server starts
     await reloadExistingSessions();
 });
-
-
-// Graceful shutdown - MODIFIED to preserve session folders unless explicit logout
-function gracefulShutdown() {
-  if (isShuttingDown) {
-    console.log("🛑 Shutdown already in progress...");
-    return;
-  }
-  
-  isShuttingDown = true;
-  console.log("\n🛑 Shutting down TRACLE LITE server gracefully...");
-  console.log("💾 PRESERVING ALL SESSION FOLDERS (graceful shutdown)");
-  
-  // Save persistent data before shutting down
-  savePersistentData();
-  console.log(`💾 Saved persistent data: ${totalUsers} total users`);
-  
-  let connectionCount = 0;
-  activeConnections.forEach((data, sessionId) => {
-    try {
-      data.conn.ws.close();
-      console.log(`🔒 Closed WhatsApp connection for session: ${sessionId}`);
-      connectionCount++;
-      
-      // PRESERVE the session folder during graceful shutdown
-      const sessionDir = path.join(__dirname, "sessions", sessionId);
-      if (fs.existsSync(sessionDir)) {
-          console.log(`💾 Preserved session folder for: ${sessionId}`);
-      }
-    } catch (error) {
-      console.error(`❌ Error closing connection for ${sessionId}:`, error.message);
-    }
-  });
-  
-  console.log(`✅ Closed ${connectionCount} WhatsApp connections`);
-  console.log("💾 ALL SESSION FOLDERS HAVE BEEN PRESERVED");
-  console.log("📁 Sessions will be automatically reloaded on next startup");
-  
-  const shutdownTimeout = setTimeout(() => {
-    console.log("⚠️  Force shutdown after timeout");
-    process.exit(0);
-  }, 5000);
-  
-  server.close(() => {
-    clearTimeout(shutdownTimeout);
-    console.log("✅ Server shut down gracefully");
-    console.log("💾 All session data preserved for next startup");
-    process.exit(0);
-  });
-}
 
 // Handle termination signals
 process.on("SIGINT", () => {
@@ -1347,7 +1315,3 @@ process.on("unhandledRejection", (reason, promise) => {
   console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
   console.log("💾 Preserving all sessions despite rejection");
 });
-
-// Track if we're in shutdown state
-let isShuttingDown = false;
-
