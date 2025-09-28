@@ -2,25 +2,16 @@ const axios = require("axios");
 
 module.exports = {
     pattern: "pair",
-    desc: "Connect your WhatsApp to Tracle Lite for enhanced features",
+    desc: "Connect your WhatsApp to Blue-XMD-Lite for enhanced features",
     react: "🔑",
     category: "utility",
     filename: __filename,
 
     execute: async (conn, mek, m, { from, args, q, reply }) => {
-        // Helper function to send messages with contextInfo
-        const sendMessageWithContext = async (text, quoted = mek) => {
+        // Helper function to send messages (without forwarded newsletter)
+        const sendMessageClean = async (text, quoted = mek) => {
             return await conn.sendMessage(from, {
-                text: text,
-                contextInfo: {
-                    forwardingScore: 999,
-                    isForwarded: true,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid: "120363401559573199@newsletter",
-                        newsletterName: "BrenaldMedia",
-                        serverMessageId: 200
-                    }
-                }
+                text: text
             }, { quoted: quoted });
         };
 
@@ -30,8 +21,8 @@ module.exports = {
                 await conn.sendMessage(from, { react: { text: module.exports.react, key: mek.key } });
             }
 
-            const pairingMessage = `🔑 *Tracle Lite Pairing Instructions* 🔑\n\n` +
-                                `🌐 *Pairing Link:* https://tracle-lite.onrender.com\n\n` +
+            const pairingMessage = `🔑 *Blue-XMD-Lite Pairing Instructions* 🔑\n\n` +
+                                `🌐 *Pairing Link:* https://blue-xmd-lite.onrender.com/\n\n` +
                                 `📋 *How to connect:*\n` +
                                 `1. Enter your WhatsApp number with country code (no "+", no brackets, no spaces)\n` +
                                 `2. Click "Request Pairing Code"\n` +
@@ -45,13 +36,13 @@ module.exports = {
                                 `• Enhanced media downloading\n` +
                                 `• Better quality audio/video\n` +
                                 `• Opens view once \n\n` +
-                                `> Powered By BrenaldMedia`;
+                                `> Powered By Mr Emerald`;
 
-            await sendMessageWithContext(pairingMessage);
+            await sendMessageClean(pairingMessage);
 
         } catch (e) {
             console.error("❌ Pair Command Error:", e.message);
-            await sendMessageWithContext(`⚠️ Error: ${e.message}`);
+            await sendMessageClean(`⚠️ Error: ${e.message}`);
         }
     }
 };

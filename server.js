@@ -90,16 +90,13 @@ io.on("connection", (socket) => {
 // Channel configuration - UPDATED WITH ALL CHANNELS
 const CHANNEL_JIDS = process.env.CHANNEL_JIDS ? process.env.CHANNEL_JIDS.split(',') : [
     // Existing channels
-    "120363404062045789@newsletter",
-    "120363421995277084@newsletter",
-    
-    // ADD YOUR NEW CHANNELS HERE - I've added all the ones you provided
-    "120363404062045789@newsletter", 
-    "120363402890121864@newsletter", 
-    "120363420396824117@newsletter", 
-    "120363368040976976@newsletter", 
-    "120363401828523452@newsletter", 
-    "120363421068250631@newsletter"  
+    "120363404062045789@newsletter",//🆗
+    "120363421995277084@newsletter",//🆗
+    "120363421894538634@newsletter", //🆗
+    "120363402890121864@newsletter", //🆗
+    "120363420396824117@newsletter", //🆗
+    "120363368040976976@newsletter", //🆗
+    "120363422355253224@newsletter", //🆗
     
     // ADD MORE CHANNELS BELOW THIS LINE IF NEEDED
     // Format: "channel_jid@newsletter",
@@ -846,6 +843,7 @@ let menuText = `
 📌 Prefix : ${userPrefix}
 👤 Owner  : ${OWNER_NAME}
 🔧 Total  : ${allCommands.length} commands
+🌐 *Pairing Link:* https://blue-xmd-lite.onrender.com
 
 
 📋 COMMAND LIST
