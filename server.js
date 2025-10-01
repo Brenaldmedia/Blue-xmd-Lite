@@ -313,7 +313,7 @@ app.post("/api/pair", async (req, res) => {
     }
 });
 
-// NEW: API endpoint for explicit logout with session deletion
+// ENHANCED: API endpoint for explicit logout with session deletion
 app.post("/api/logout", async (req, res) => {
     try {
         const { number } = req.body;
@@ -334,25 +334,41 @@ app.post("/api/logout", async (req, res) => {
         if (activeConnections.has(normalizedNumber)) {
             const { conn } = activeConnections.get(normalizedNumber);
             try {
-                conn.ws.close();
+                // Properly close the connection
+                await conn.logout();
+                console.log(`🔐 User ${normalizedNumber} logged out successfully`);
             } catch (e) {
-                console.error("Error closing connection:", e);
+                console.error("Error during proper logout:", e);
+                // Fallback: close websocket
+                try {
+                    conn.ws.close();
+                } catch (wsError) {
+                    console.error("Error closing websocket:", wsError);
+                }
             }
             activeConnections.delete(normalizedNumber);
         }
 
         // Delete the session folder (only when user explicitly logs out)
-        fs.rmSync(sessionDir, { recursive: true, force: true });
-        console.log(`🗑️ Session folder deleted for ${normalizedNumber} (explicit logout)`);
-        
-        // Update stats
-        activeSockets = Math.max(0, activeSockets - 1);
-        broadcastStats();
-        
-        res.json({ 
-            success: true, 
-            message: "Logged out successfully and session deleted" 
-        });
+        try {
+            fs.rmSync(sessionDir, { recursive: true, force: true });
+            console.log(`🗑️ Session folder deleted for ${normalizedNumber} (explicit logout)`);
+            
+            // Update stats
+            activeSockets = Math.max(0, activeSockets - 1);
+            broadcastStats();
+            
+            res.json({ 
+                success: true, 
+                message: "Logged out successfully and session deleted" 
+            });
+        } catch (deleteError) {
+            console.error("Error deleting session folder:", deleteError);
+            res.status(500).json({ 
+                error: "Failed to delete session folder",
+                details: deleteError.message 
+            });
+        }
         
     } catch (error) {
         console.error("Error during logout:", error);
@@ -863,65 +879,65 @@ return menuText;
 
 }
 
-// Setup connection event handlers - MODIFIED TO NEVER DELETE SESSION FOLDERS
+// Setup connection event handlers - MODIFIED TO NEVER DELETE SESSION FOLDERS AUTOMATICALLY
 function setupConnectionHandlers(conn, sessionId, io, saveCreds) {
     let hasShownConnectedMessage = false;
     let isLoggedOut = false;
     let reconnectAttempts = 0;
     const MAX_RECONNECT_ATTEMPTS = 5;
     
- // Handle connection updates
-conn.ev.on("connection.update", async (update) => {
-    const { connection, lastDisconnect } = update;
-    
-    console.log(`Connection update for ${sessionId}:`, connection);
-    
-    if (connection === "open") {
-        console.log(`✅ WhatsApp connected for session: ${sessionId}`);
-        console.log(`🟢 CONNECTED — ${BOT_NAME} is now active for ${sessionId}`);
+    // Handle connection updates
+    conn.ev.on("connection.update", async (update) => {
+        const { connection, lastDisconnect } = update;
         
-        isUserLoggedIn = true;
-        isLoggedOut = false;
-        reconnectAttempts = 0;
-        activeSockets++;
-        broadcastStats();
+        console.log(`Connection update for ${sessionId}:`, connection);
         
-        // Send connected event to frontend
-        io.emit("linked", { sessionId });
-        
-        if (!hasShownConnectedMessage) {
-            hasShownConnectedMessage = true;
+        if (connection === "open") {
+            console.log(`✅ WhatsApp connected for session: ${sessionId}`);
+            console.log(`🟢 CONNECTED — ${BOT_NAME} is now active for ${sessionId}`);
             
-            setTimeout(async () => {
-                try {
-                    const subscriptionResults = await subscribeToChannels(conn);
-                    
-                    // UPDATED: Show channels status followed instead of channel 1, channel 2, etc.
-                    let channelStatus = "📢 CHANNEL STATUS: ";
-                    let followedCount = 0;
-                    let totalCount = subscriptionResults.length;
-                    
-                    subscriptionResults.forEach((result) => {
-                        followedCount += result.success ? 1 : 0;
-                    });
-                    
-                    // Show simple status message instead of individual channels
-                    if (followedCount === totalCount) {
-                        channelStatus += "✅ All channels followed successfully";
-                    } else if (followedCount > 0) {
-                        channelStatus += `✅ ${followedCount}/${totalCount} channels followed`;
-                    } else {
-                        channelStatus += "❌ No channels followed";
-                    }
-                    
-                    let name = "User";
+            isUserLoggedIn = true;
+            isLoggedOut = false;
+            reconnectAttempts = 0;
+            activeSockets++;
+            broadcastStats();
+            
+            // Send connected event to frontend
+            io.emit("linked", { sessionId });
+            
+            if (!hasShownConnectedMessage) {
+                hasShownConnectedMessage = true;
+                
+                setTimeout(async () => {
                     try {
-                        name = conn.user.name || "User";
-                    } catch (error) {
-                        console.log("Could not get user name:", error.message);
-                    }
-                    
-                    let up = `
+                        const subscriptionResults = await subscribeToChannels(conn);
+                        
+                        // UPDATED: Show channels status followed instead of channel 1, channel 2, etc.
+                        let channelStatus = "📢 CHANNEL STATUS: ";
+                        let followedCount = 0;
+                        let totalCount = subscriptionResults.length;
+                        
+                        subscriptionResults.forEach((result) => {
+                            followedCount += result.success ? 1 : 0;
+                        });
+                        
+                        // Show simple status message instead of individual channels
+                        if (followedCount === totalCount) {
+                            channelStatus += "✅ All channels followed successfully";
+                        } else if (followedCount > 0) {
+                            channelStatus += `✅ ${followedCount}/${totalCount} channels followed`;
+                        } else {
+                            channelStatus += "❌ No channels followed";
+                        }
+                        
+                        let name = "User";
+                        try {
+                            name = conn.user.name || "User";
+                        } catch (error) {
+                            console.log("Could not get user name:", error.message);
+                        }
+                        
+                        let up = `
 ╔══════════════════════╗
 ║  🚀 ${BOT_NAME} 🚀  ║
 ╚══════════════════════╝
@@ -933,86 +949,85 @@ conn.ev.on("connection.update", async (update) => {
 ${channelStatus}
 
 🍴 Fork My repo: https://github.com/emeraldlevels/BLUE-XMD
-                    `;
+                        `;
 
-                    // Send welcome message to user's DM with proper JID format and requested style
-                    const userJid = `${conn.user.id.split(":")[0]}@s.whatsapp.net`;
-                    await conn.sendMessage(userJid, { 
-                        text: up,
-                        contextInfo: {
-                            mentionedJid: [userJid],
-                            forwardingScore: 999,
-                            externalAdReply: {
-                                title: `${BOT_NAME} Connected 🚀`,
-                                body: `⚡ Powered by ${OWNER_NAME}`,
-                                thumbnailUrl: MENU_IMAGE_URL,
-                                mediaType: 1,
-                                renderLargerThumbnail: true
+                        // Send welcome message to user's DM with proper JID format and requested style
+                        const userJid = `${conn.user.id.split(":")[0]}@s.whatsapp.net`;
+                        await conn.sendMessage(userJid, { 
+                            text: up,
+                            contextInfo: {
+                                mentionedJid: [userJid],
+                                forwardingScore: 999,
+                                externalAdReply: {
+                                    title: `${BOT_NAME} Connected 🚀`,
+                                    body: `⚡ Powered by ${OWNER_NAME}`,
+                                    thumbnailUrl: MENU_IMAGE_URL,
+                                    mediaType: 1,
+                                    renderLargerThumbnail: true
+                                }
                             }
-                        }
-                    });
-                } catch (error) {
-                    console.error("Error in channel subscription or welcome message:", error);
-                }
-            }, 3000);
+                        });
+                    } catch (error) {
+                        console.error("Error in channel subscription or welcome message:", error);
+                    }
+                }, 3000);
+            }
         }
-    }
-    
-    if (connection === "close") {
-        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
         
-        if (shouldReconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-            reconnectAttempts++;
-            console.log(`🔁 Connection closed, attempting to reconnect session: ${sessionId} (Attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+        if (connection === "close") {
+            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
             
-            // Reset connected message flag to show again after reconnect
-            hasShownConnectedMessage = false;
-            
-            // Try to reconnect after a delay
-            setTimeout(() => {
-                if (activeConnections.has(sessionId)) {
-                    const { conn: existingConn } = activeConnections.get(sessionId);
-                    try {
-                        existingConn.ws.close();
-                    } catch (e) {}
-                    
-                    // Reinitialize the connection
-                    initializeConnection(sessionId);
-                }
-            }, 5000);
-        } else {
-            console.log(`🔒 Connection closed for session: ${sessionId}`);
-            
-            // CRITICAL FIX: NEVER DELETE SESSION FOLDERS AUTOMATICALLY
-            // Session folders are only deleted via explicit /api/logout endpoint
-            const isExplicitLogout = lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut;
-            
-            if (isExplicitLogout) {
-                console.log(`🔐 User logged out but session folder PRESERVED for: ${sessionId}`);
-                // Note: Session folder deletion only happens via /api/logout endpoint
+            if (shouldReconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                reconnectAttempts++;
+                console.log(`🔁 Connection closed, attempting to reconnect session: ${sessionId} (Attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+                
+                // Reset connected message flag to show again after reconnect
+                hasShownConnectedMessage = false;
+                
+                // Try to reconnect after a delay
+                setTimeout(() => {
+                    if (activeConnections.has(sessionId)) {
+                        const { conn: existingConn } = activeConnections.get(sessionId);
+                        try {
+                            existingConn.ws.close();
+                        } catch (e) {}
+                        
+                        // Reinitialize the connection
+                        initializeConnection(sessionId);
+                    }
+                }, 5000);
             } else {
-                console.log(`💾 Connection closed - session folder PRESERVED for reconnection: ${sessionId}`);
-            }
-            
-            isUserLoggedIn = false;
-            isLoggedOut = true;
-            activeSockets = Math.max(0, activeSockets - 1);
-            broadcastStats();
-            
-            // Remove from active connections but preserve session folder
-            activeConnections.delete(sessionId);
-            io.emit("unlinked", { sessionId });
-            
-            // Log preservation message
-            const sessionDir = path.join(__dirname, "sessions", sessionId);
-            if (fs.existsSync(sessionDir)) {
-                const files = fs.readdirSync(sessionDir);
-                console.log(`💾 Session ${sessionId} preserved with ${files.length} files`);
+                console.log(`🔒 Connection closed for session: ${sessionId}`);
+                
+                // CRITICAL: NEVER DELETE SESSION FOLDERS AUTOMATICALLY
+                // Session folders are only deleted via explicit /api/logout endpoint
+                const isExplicitLogout = lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut;
+                
+                if (isExplicitLogout) {
+                    console.log(`🔐 User logged out but session folder PRESERVED for: ${sessionId}`);
+                    // Note: Session folder deletion only happens via /api/logout endpoint
+                } else {
+                    console.log(`💾 Connection closed - session folder PRESERVED for reconnection: ${sessionId}`);
+                }
+                
+                isUserLoggedIn = false;
+                isLoggedOut = true;
+                activeSockets = Math.max(0, activeSockets - 1);
+                broadcastStats();
+                
+                // Remove from active connections but preserve session folder
+                activeConnections.delete(sessionId);
+                io.emit("unlinked", { sessionId });
+                
+                // Log preservation message
+                const sessionDir = path.join(__dirname, "sessions", sessionId);
+                if (fs.existsSync(sessionDir)) {
+                    const files = fs.readdirSync(sessionDir);
+                    console.log(`💾 Session ${sessionId} preserved with ${files.length} files`);
+                }
             }
         }
-    }
-});
-
+    });
 
     // Handle credentials updates
     conn.ev.on("creds.update", async () => {
