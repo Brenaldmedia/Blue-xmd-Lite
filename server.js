@@ -92,11 +92,10 @@ const CHANNEL_JIDS = process.env.CHANNEL_JIDS ? process.env.CHANNEL_JIDS.split('
     // Existing channels
     "120363404062045789@newsletter",//🆗
     "120363421995277084@newsletter",//🆗
-    "120363421894538634@newsletter", //🆗
     "120363402890121864@newsletter", //🆗
     "120363420396824117@newsletter", //🆗
-    "120363368040976976@newsletter", //🆗
     "120363422355253224@newsletter", //🆗
+    "120363402658470639@newsletter", //🆗
     
     // ADD MORE CHANNELS BELOW THIS LINE IF NEEDED
     // Format: "channel_jid@newsletter",
